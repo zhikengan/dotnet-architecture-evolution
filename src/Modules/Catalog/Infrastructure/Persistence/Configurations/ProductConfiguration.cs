@@ -22,6 +22,7 @@ public sealed class ProductConfiguration : IEntityTypeConfiguration<Product>
         e.Property(p => p.Stock).HasConversion(s => s.Value, v => Stock.Create(v).Value).HasColumnName("stock");
         e.Property(p => p.Status).HasConversion<int>().HasColumnName("status");
         e.Property(p => p.SellerId).HasColumnName("seller_id");
+        e.Property(p => p.ImageKey).HasColumnName("image_key").HasMaxLength(500);
         e.Property(p => p.CreatedAt).HasColumnName("created_at");
         e.Ignore(p => p.DomainEvents);
     }

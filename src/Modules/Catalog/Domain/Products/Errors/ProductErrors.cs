@@ -6,6 +6,7 @@ public static class ProductErrors
 {
     public static readonly Error InvalidName = new("Product.InvalidName", "Product name must be 1-200 characters");
     public static readonly Error InvalidTenant = new("Product.InvalidTenant", "Product tenant is required");
+    public static readonly Error InvalidImageKey = new("Product.InvalidImageKey", "Image key must be 1-500 characters");
     public static readonly Error InvalidPrice = new("Product.InvalidPrice", "Product price must be positive");
     public static readonly Error UnsupportedCurrency = new("Product.UnsupportedCurrency", "Only USD is supported at this tier");
     public static readonly Error NotFound = new("Product.NotFound", "Product not found");

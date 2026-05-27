@@ -1,4 +1,5 @@
 using BuildingBlocks.Domain;
+using BuildingBlocks.Infrastructure.Storage;
 using Catalog.Application.Abstractions;
 using Catalog.Domain.Products;
 using MediatR;
@@ -7,11 +8,11 @@ using Platform.Contracts;
 
 namespace Catalog.Application.Products.Queries.ListProductsForBuyer;
 
-public sealed record BuyerProductDto(Guid Id, string Name, decimal Price, bool InStock, bool IsPremium);
+public sealed record BuyerProductDto(Guid Id, string Name, decimal Price, bool InStock, bool IsPremium, string? ImageUrl);
 
 public sealed record ListProductsForBuyerQuery(Guid BuyerId) : IRequest<Result<IReadOnlyList<BuyerProductDto>>>;
 
-public sealed class ListProductsForBuyerHandler(ICatalogDbContext db, IFeatureFlagQuery featureFlags)
+public sealed class ListProductsForBuyerHandler(ICatalogDbContext db, IFeatureFlagQuery featureFlags, IFileStorage storage)
     : IRequestHandler<ListProductsForBuyerQuery, Result<IReadOnlyList<BuyerProductDto>>>
 {
     public async Task<Result<IReadOnlyList<BuyerProductDto>>> Handle(ListProductsForBuyerQuery query, CancellationToken ct)
@@ -24,7 +25,13 @@ public sealed class ListProductsForBuyerHandler(ICatalogDbContext db, IFeatureFl
 
         var isPremium = await featureFlags.IsEnabledAsync("EnablePremiumBadge", query.BuyerId, ct);
         IReadOnlyList<BuyerProductDto> dtos = products
-            .Select(p => new BuyerProductDto(p.Id.Value, p.Name, p.Price.Amount, p.Stock.Value > 0, isPremium))
+            .Select(p => new BuyerProductDto(
+                p.Id.Value,
+                p.Name,
+                p.Price.Amount,
+                p.Stock.Value > 0,
+                isPremium,
+                string.IsNullOrEmpty(p.ImageKey) ? null : storage.GeneratePublicUrl(p.ImageKey)))
             .ToList();
         return Result.Success(dtos);
     }

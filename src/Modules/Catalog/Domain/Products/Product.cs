@@ -13,6 +13,7 @@ public sealed class Product : AggregateRoot<ProductId>, IMultiTenant
     public Stock Stock { get; private set; }
     public Guid SellerId { get; private set; }
     public ProductStatus Status { get; private set; } = ProductStatus.Draft;
+    public string? ImageKey { get; private set; }
     public DateTime CreatedAt { get; private set; }
 
     private Product() { }
@@ -74,4 +75,13 @@ public sealed class Product : AggregateRoot<ProductId>, IMultiTenant
     }
 
     public void Suspend() => Status = ProductStatus.Suspended;
+
+    public Result SetImageKey(string imageKey)
+    {
+        if (string.IsNullOrWhiteSpace(imageKey) || imageKey.Length > 500)
+            return Result.Failure(ProductErrors.InvalidImageKey);
+        ImageKey = imageKey;
+        RaiseDomainEvent(new ProductImageSet(Id, TenantId, imageKey));
+        return Result.Success();
+    }
 }

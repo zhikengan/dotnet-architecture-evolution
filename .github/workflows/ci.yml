@@ -1,0 +1,34 @@
+name: ci
+
+on:
+  push:
+    branches: [main, tier-2-clean-arch]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --configuration Release --no-restore
+
+      - name: Test (Domain + Application — no Docker needed)
+        run: |
+          dotnet test tests/Marketplace.Domain.Tests/Marketplace.Domain.Tests.csproj --configuration Release --no-build --verbosity normal
+          dotnet test tests/Marketplace.Application.Tests/Marketplace.Application.Tests.csproj --configuration Release --no-build --verbosity normal
+
+      - name: Test (Infrastructure + Api — Testcontainers Postgres)
+        run: |
+          dotnet test tests/Marketplace.Infrastructure.Tests/Marketplace.Infrastructure.Tests.csproj --configuration Release --no-build --verbosity normal
+          dotnet test tests/Marketplace.Api.Tests/Marketplace.Api.Tests.csproj --configuration Release --no-build --verbosity normal

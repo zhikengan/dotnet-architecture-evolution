@@ -1,4 +1,3 @@
-using Marketplace.Api.Authorization;
 using Marketplace.Api.Common;
 using Marketplace.Application.Abstractions;
 using Marketplace.Application.Orders.CancelOwnOrder;
@@ -12,7 +11,7 @@ public static class BuyerEndpoints
 {
     public static IEndpointRouteBuilder MapBuyerEndpoints(this IEndpointRouteBuilder app)
     {
-        var buyer = app.MapGroup("/api/buyer").RequireRole("Buyer").WithTags("Buyer");
+        var buyer = app.MapGroup("/api/buyer").RequireAuthorization("Buyer").WithTags("Buyer");
 
         buyer.MapGet("/products", async (ISender mediator, CancellationToken ct) =>
         {

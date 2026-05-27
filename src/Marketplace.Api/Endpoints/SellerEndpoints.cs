@@ -1,4 +1,3 @@
-using Marketplace.Api.Authorization;
 using Marketplace.Api.Common;
 using Marketplace.Application.Abstractions;
 using Marketplace.Application.Products.CreateProduct;
@@ -10,7 +9,7 @@ public static class SellerEndpoints
 {
     public static IEndpointRouteBuilder MapSellerEndpoints(this IEndpointRouteBuilder app)
     {
-        var seller = app.MapGroup("/api/seller").RequireRole("Seller").WithTags("Seller");
+        var seller = app.MapGroup("/api/seller").RequireAuthorization("Seller").WithTags("Seller");
 
         seller.MapPost("/products", async (CreateProductBody body, ICurrentUser user, ISender mediator, CancellationToken ct) =>
         {

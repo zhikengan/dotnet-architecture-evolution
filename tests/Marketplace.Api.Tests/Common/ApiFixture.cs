@@ -1,4 +1,6 @@
+using System.Net.Http.Headers;
 using Marketplace.Domain.Products;
+using Marketplace.Infrastructure.Authentication;
 using Marketplace.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -37,6 +39,10 @@ public sealed class ApiFixture : WebApplicationFactory<Program>, IAsyncLifetime
                 ["ConnectionStrings:Default"] = _container.GetConnectionString(),
                 ["App:Name"] = "MarketplaceTest",
                 ["App:SeedOnStartup"] = "false",
+                ["Jwt:Key"] = "marketplace-api-tests-symmetric-key-32+chars-min!!",
+                ["Jwt:Issuer"] = "marketplace",
+                ["Jwt:Audience"] = "marketplace-clients",
+                ["Jwt:LifetimeMinutes"] = "60",
             });
         });
     }
@@ -54,11 +60,18 @@ public sealed class ApiFixture : WebApplicationFactory<Program>, IAsyncLifetime
         await base.DisposeAsync();
     }
 
+    /// <summary>
+    /// Mints a JWT for <paramref name="userId"/>/<paramref name="role"/> via the same
+    /// <see cref="JwtTokenIssuer"/> the API uses, and returns a client that carries
+    /// it as a Bearer token — i.e., requests flow through the real auth middleware.
+    /// </summary>
     public HttpClient ClientFor(string role, Guid userId)
     {
         var client = CreateClient();
-        client.DefaultRequestHeaders.Add("X-User-Role", role);
-        client.DefaultRequestHeaders.Add("X-User-Id", userId.ToString());
+        using var scope = Services.CreateScope();
+        var issuer = scope.ServiceProvider.GetRequiredService<JwtTokenIssuer>();
+        var (token, _) = issuer.Mint(userId, role);
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
         return client;
     }
 

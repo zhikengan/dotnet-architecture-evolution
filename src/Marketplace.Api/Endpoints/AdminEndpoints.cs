@@ -1,4 +1,3 @@
-using Marketplace.Api.Authorization;
 using Marketplace.Api.Common;
 using Marketplace.Application.Orders.ForceCancelOrder;
 using Marketplace.Application.Products.Queries.ListProductsForAdmin;
@@ -10,7 +9,7 @@ public static class AdminEndpoints
 {
     public static IEndpointRouteBuilder MapAdminEndpoints(this IEndpointRouteBuilder app)
     {
-        var admin = app.MapGroup("/api/admin").RequireRole("Admin").WithTags("Admin");
+        var admin = app.MapGroup("/api/admin").RequireAuthorization("Admin").WithTags("Admin");
 
         admin.MapGet("/products", async (ISender mediator, CancellationToken ct) =>
         {

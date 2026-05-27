@@ -66,9 +66,27 @@ dotnet test
 
 CI splits these into a fast Domain/Application stage and a slower Infrastructure/Api stage that needs Docker on the runner.
 
-## Auth (still header-based at Tier 2)
+## Auth (JWT Bearer with a dev-only token mint)
 
-The same `X-User-Role` + `X-User-Id` headers as Tier 1. A custom `RoleAuthorizationFilter` endpoint filter checks them: missing → 401, wrong role → 403. No JWT until Tier 5.
+Tier 2 wires the **real ASP.NET Core auth pipeline** — `services.AddAuthentication().AddJwtBearer(...)` + `services.AddAuthorization(...)` with `Buyer`/`Seller`/`Admin` policies, then `app.UseAuthentication()` then `app.UseAuthorization()`. Endpoint groups gate on policies via `.RequireAuthorization("Buyer")` etc.
+
+What's "dev-only" is **the issuer**, not the validation. The middleware runs the same `JwtBearerHandler` you'd use in production: signature check, issuer/audience/lifetime validation, claims onto `HttpContext.User`. The tokens are HS256 signed by a symmetric key from `appsettings.json` (replace at deploy time).
+
+Token minting goes through `POST /api/dev/token` — body `{ userId, role }`, returns `{ access_token, token_type, expires_at }`. The endpoint is registered **only when `app.Environment.IsDevelopment()`** so it can't ship to production. There is no login, no password, no IdP. Tier 4 graduates to RS256 + a real issuer service.
+
+`ICurrentUser` reads from the `ClaimsPrincipal`: `NameIdentifier` → `UserId`, `Role` → `Role`. No header parsing.
+
+Walk it with `demo.http`: the first three requests mint Seller/Buyer/Admin tokens; the rest of the file attaches `Authorization: Bearer {{tokenName.response.body.$.access_token}}`.
+
+## Auth placement (where each piece lives, and why)
+
+| File | Project | Why |
+|---|---|---|
+| [`Marketplace.Infrastructure/Authentication/JwtOptions.cs`](src/Marketplace.Infrastructure/Authentication/JwtOptions.cs) | Infrastructure | Config DTO for a real-world adapter — same layer as `AppDbContext` |
+| [`Marketplace.Infrastructure/Authentication/JwtTokenIssuer.cs`](src/Marketplace.Infrastructure/Authentication/JwtTokenIssuer.cs) | Infrastructure | The token-signing "adapter" — uses crypto + `IClock`; sibling to `SystemClock` |
+| [`Marketplace.Api/Authentication/AuthDependencyInjection.cs`](src/Marketplace.Api/Authentication/AuthDependencyInjection.cs) | Api | Host-level composition: AddJwtBearer + AddAuthorization policies |
+| [`Marketplace.Api/Authentication/HttpCurrentUser.cs`](src/Marketplace.Api/Authentication/HttpCurrentUser.cs) | Api | Claims reader — bound to `HttpContext`, an HTTP-only concept |
+| [`Marketplace.Api/Endpoints/DevTokenEndpoints.cs`](src/Marketplace.Api/Endpoints/DevTokenEndpoints.cs) | Api | The dev mint endpoint — HTTP endpoint, Development-only |
 
 ## Endpoints
 
@@ -97,7 +115,7 @@ The same `X-User-Role` + `X-User-Id` headers as Tier 1. A custom `RoleAuthorizat
 | Idempotency keys                         | Tier 4                                |
 | Multi-tenancy                            | Tier 4                                |
 | Separate Worker host (Hangfire/Quartz)   | Tier 4                                |
-| Real JWT-based authentication            | Tier 5                                |
+| Real JWT issuer (RS256 + IdP)            | Tier 4 (Tier 2/3 ship a dev mint)     |
 | Distributed services + BFFs              | Tier 5 (microservices)                |
 | Async event-driven order placement saga  | Tier 5                                |
 
@@ -120,3 +138,4 @@ The Tier 2 code that doesn't change: the aggregates, value objects, errors, even
 - [`docs/adr/0002-mediatr-vertical-slices.md`](docs/adr/0002-mediatr-vertical-slices.md)
 - [`docs/adr/0003-result-pattern-over-exceptions.md`](docs/adr/0003-result-pattern-over-exceptions.md)
 - [`docs/adr/0004-strongly-typed-ids-and-value-objects.md`](docs/adr/0004-strongly-typed-ids-and-value-objects.md)
+- [`docs/adr/0005-jwt-bearer-with-dev-mint.md`](docs/adr/0005-jwt-bearer-with-dev-mint.md)

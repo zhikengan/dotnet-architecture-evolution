@@ -1,7 +1,6 @@
-using Marketplace.Api.Authorization;
+using Marketplace.Api.Authentication;
 using Marketplace.Api.Configuration;
 using Marketplace.Api.Endpoints;
-using Marketplace.Application.Abstractions;
 using Marketplace.Application.Common;
 using Marketplace.Infrastructure;
 using Marketplace.Infrastructure.Persistence;
@@ -20,15 +19,15 @@ builder.Services.AddOptions<AppOptions>()
     .ValidateDataAnnotations()
     .ValidateOnStart();
 
-builder.Services.AddHttpContextAccessor();
-builder.Services.AddScoped<ICurrentUser, HttpCurrentUser>();
-
+builder.Services.AddMarketplaceAuthentication(builder.Configuration);
 builder.Services.AddApplicationServices();
 builder.Services.AddInfrastructureServices(builder.Configuration);
 
 var app = builder.Build();
 
 app.UseSerilogRequestLogging();
+app.UseAuthentication();
+app.UseAuthorization();
 
 if (app.Environment.IsDevelopment())
 {
@@ -41,6 +40,8 @@ if (app.Environment.IsDevelopment())
     {
         await DataSeeder.SeedAsync(db);
     }
+
+    app.MapDevTokenEndpoints();
 }
 
 app.MapGet("/", () => "Marketplace API — Tier 2");

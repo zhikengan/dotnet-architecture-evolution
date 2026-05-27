@@ -11,6 +11,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Orders.Infrastructure.Persistence;
 using Platform.Infrastructure.Persistence;
+using Testcontainers.Minio;
 using Testcontainers.PostgreSql;
 
 namespace EndToEndTests.Fixtures;
@@ -23,6 +24,14 @@ public sealed class ApiFixture : WebApplicationFactory<Program>, IAsyncLifetime
         .WithUsername("e2e")
         .WithPassword("e2e")
         .Build();
+
+    private readonly MinioContainer _minio = new MinioBuilder()
+        .WithImage("minio/minio:latest")
+        .WithUsername("minioadmin")
+        .WithPassword("minioadmin")
+        .Build();
+
+    public const string TestBucket = "product-images-e2e";
 
     public static readonly Guid SellerId = new("11111111-1111-1111-1111-111111111111");
     public static readonly Guid BuyerId = new("22222222-2222-2222-2222-222222222222");
@@ -52,6 +61,13 @@ public sealed class ApiFixture : WebApplicationFactory<Program>, IAsyncLifetime
                 ["Jwt:KeyId"] = TestKeys.KeyId,
                 ["Jwt:PrivateKeyPem"] = TestKeys.PrivateKeyPem,
                 ["Jwt:PublicKeyPem"] = TestKeys.PublicKeyPem,
+                ["Storage:Provider"] = "S3",
+                ["Storage:Endpoint"] = _minio.GetConnectionString(),
+                ["Storage:PublicEndpoint"] = _minio.GetConnectionString(),
+                ["Storage:AccessKey"] = "minioadmin",
+                ["Storage:SecretKey"] = "minioadmin",
+                ["Storage:Region"] = "us-east-1",
+                ["Storage:Bucket"] = TestBucket,
             });
         });
     }
@@ -59,6 +75,8 @@ public sealed class ApiFixture : WebApplicationFactory<Program>, IAsyncLifetime
     public async Task InitializeAsync()
     {
         await _container.StartAsync();
+        await _minio.StartAsync();
+        await EnsureBucketAsync();
         _ = Services;
         await ResetAsync();
     }
@@ -67,7 +85,24 @@ public sealed class ApiFixture : WebApplicationFactory<Program>, IAsyncLifetime
     {
         await base.DisposeAsync();
         await _container.DisposeAsync();
+        await _minio.DisposeAsync();
     }
+
+    private async Task EnsureBucketAsync()
+    {
+        var s3Config = new Amazon.S3.AmazonS3Config
+        {
+            ServiceURL = _minio.GetConnectionString(),
+            ForcePathStyle = true,
+            UseHttp = true,
+            AuthenticationRegion = "us-east-1",
+        };
+        var creds = new Amazon.Runtime.BasicAWSCredentials("minioadmin", "minioadmin");
+        using var s3 = new Amazon.S3.AmazonS3Client(creds, s3Config);
+        try { await s3.PutBucketAsync(TestBucket); } catch { /* already exists */ }
+    }
+
+    public string MinioEndpoint => _minio.GetConnectionString();
 
     /// <summary>
     /// Mints a JWT via the same <see cref="JwtTokenIssuer"/> the API uses and

@@ -42,6 +42,9 @@ public sealed class S3FileStorage : IFileStorage
             Verb = HttpVerb.PUT,
             Expires = expiresAt,
             ContentType = contentType,
+            Protocol = _opts.Endpoint.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+                ? Protocol.HTTP
+                : Protocol.HTTPS,
         };
         var url = await _s3.GetPreSignedURLAsync(req);
         return new PresignedUploadResult(url, GeneratePublicUrl(key), expiresAt);

@@ -7,7 +7,9 @@ using BuildingBlocks.Infrastructure.Telemetry;
 using BuildingBlocks.Infrastructure.Time;
 using Catalog;
 using Catalog.Infrastructure.Persistence;
+using Marketplace.Api.Authentication;
 using Marketplace.Api.Endpoints;
+using Marketplace.Api.Endpoints.Dev;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Orders;
@@ -31,8 +33,11 @@ builder.Host.UseSerilog((ctx, _, cfg) => cfg
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddSingleton<IClock, SystemClock>();
 builder.Services.AddScoped<ICorrelationContext, CorrelationContext>();
-builder.Services.AddScoped<ICurrentUser, Marketplace.Api.HttpCurrentUser>();
+builder.Services.AddScoped<ICurrentUser, HttpCurrentUser>();
 builder.Services.AddSingleton<IEventBus, InMemoryEventBus>();
+
+// Authentication + authorization (JwtBearer + role policies; shared via BuildingBlocks)
+builder.Services.AddMarketplaceAuthentication(builder.Configuration);
 
 // Outbox processor
 builder.Services.Configure<OutboxOptions>(builder.Configuration.GetSection(OutboxOptions.SectionName));
@@ -70,6 +75,8 @@ var app = builder.Build();
 
 app.UseSerilogRequestLogging();
 app.UseMiddleware<CorrelationMiddleware>();
+app.UseAuthentication();
+app.UseAuthorization();
 
 // Migrate + seed in Development only (forbidden in production paths per Tier 3 rules).
 if (app.Environment.IsDevelopment())
@@ -83,6 +90,10 @@ if (app.Environment.IsDevelopment())
     await ordersDb.Database.MigrateAsync();
     await PlatformDataSeeder.SeedAsync(platformDb);
     await CatalogDataSeeder.SeedAsync(catalogDb);
+
+    // Dev-only token mint — registered ONLY in Development so the unauth
+    // mint path can't ship to production.
+    app.MapDevTokenEndpoints();
 }
 
 app.MapGet("/", () => "Marketplace API — Tier 3 (modular monolith)");

@@ -13,7 +13,7 @@ public static class SellerEndpoints
 {
     public static IEndpointRouteBuilder MapSellerEndpoints(this IEndpointRouteBuilder app)
     {
-        var g = app.MapGroup("/api/seller").RequireRole("Seller").WithTags("Seller");
+        var g = app.MapGroup("/api/seller").RequireAuthorization("Seller").WithTags("Seller");
 
         g.MapPost("/products", async (CreateProductBody body, ICurrentUser user, ISender mediator, CancellationToken ct) =>
         {

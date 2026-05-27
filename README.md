@@ -85,9 +85,25 @@ The app applies all three modules' migrations and seeds reference data (3 produc
 
 [`demo.http`](demo.http) chains named REST Client requests so dynamic seed IDs flow through. Covers S1–S13 from `SHARED_SCOPE.md`, the async saga (PlaceOrder returns Pending; re-GET shows Confirmed), and the feature-flag toggle (admin sets `EnablePremiumBadge` rollout to 100%; buyer's `isPremium` flips after cache TTL).
 
-## Auth (header-based, same as Tier 2)
+## Auth (JWT Bearer with a dev-only token mint)
 
-`X-User-Role` (Buyer/Seller/Admin) + `X-User-Id` (Guid). Missing → 401, wrong role → 403. JWT lands at Tier 5.
+Tier 3 wires the **real ASP.NET Core auth pipeline**: `AddMarketplaceAuthentication` (from `BuildingBlocks/Api/AuthDependencyInjection.cs`) registers `JwtBearer` with HS256 validation parameters and three role policies (`Buyer`/`Seller`/`Admin`). The host adds `app.UseAuthentication()` and `app.UseAuthorization()` to the pipeline; endpoint groups gate on `.RequireAuthorization("Buyer")` etc.
+
+`ICurrentUser` is satisfied by `HttpCurrentUser` (in `Hosts/Api/Authentication/`) reading `NameIdentifier` and `Role` claims off `HttpContext.User` — no header parsing.
+
+Token minting goes through `POST /api/dev/token` (Development-only) — body `{ userId, role }`, response `{ access_token, token_type, expires_at }`. The endpoint is registered behind `if (app.Environment.IsDevelopment())` so it can't ship. Tests use the same `JwtTokenIssuer` (from `BuildingBlocks/Infrastructure/Authentication/`) directly to mint tokens; `demo.http` uses the HTTP endpoint via named REST Client requests.
+
+Tier 4 graduates to **RS256 + a real issuer** with key rotation, multi-tenancy claims, and a discovery doc.
+
+## Auth placement (where each piece lives, and why)
+
+| File | Project | Layer | Why |
+|---|---|---|---|
+| [`BuildingBlocks/Infrastructure/Authentication/JwtOptions.cs`](src/BuildingBlocks/Infrastructure/Authentication/JwtOptions.cs) | BuildingBlocks | Shared infra | Config DTO — sibling to other Infrastructure options (Outbox, etc.) |
+| [`BuildingBlocks/Infrastructure/Authentication/JwtTokenIssuer.cs`](src/BuildingBlocks/Infrastructure/Authentication/JwtTokenIssuer.cs) | BuildingBlocks | Shared infra | Crypto + `IClock` — same layer as outbox/event-bus/telemetry |
+| [`BuildingBlocks/Api/AuthDependencyInjection.cs`](src/BuildingBlocks/Api/AuthDependencyInjection.cs) | BuildingBlocks | Shared host helpers | Composition any future host wires identically |
+| [`Hosts/Api/Authentication/HttpCurrentUser.cs`](src/Hosts/Api/Authentication/HttpCurrentUser.cs) | Hosts/Api | Host | Bound to `HttpContext` — host concept, not shared kernel |
+| [`Hosts/Api/Endpoints/Dev/DevTokenEndpoints.cs`](src/Hosts/Api/Endpoints/Dev/DevTokenEndpoints.cs) | Hosts/Api | Host | HTTP endpoint, Development-only |
 
 ## Endpoints
 
@@ -131,7 +147,7 @@ dotnet test tests/ArchitectureTests/ArchitectureTests.csproj
 |---|---|
 | Real message broker (RabbitMQ / Kafka) — in-memory `IEventBus` only | Tier 5 (microservices) |
 | Multi-tenancy with `TenantId` query filters | Tier 4 (platform) |
-| JWT authentication | Tier 5 |
+| Real JWT issuer (RS256 + IdP, key rotation) — Tier 3 ships a dev mint | Tier 4 |
 | Separate Worker host (OutboxProcessor is in the Api host) | Tier 4 |
 | S3 / Blob storage for files | Tier 4 |
 | Distributed services + BFFs | Tier 5 |
@@ -144,3 +160,4 @@ The next branch (`tier-4-platform`) introduces multi-tenancy, JWT, S3, and a wor
 - [`docs/adr/0001-modular-monolith.md`](docs/adr/0001-modular-monolith.md) — why three modules with enforced boundaries
 - [`docs/adr/0002-outbox-inbox-pattern.md`](docs/adr/0002-outbox-inbox-pattern.md) — at-least-once + consumer dedup
 - [`docs/adr/0003-cross-module-saga-via-events.md`](docs/adr/0003-cross-module-saga-via-events.md) — async PlaceOrder choreography
+- [`docs/adr/0007-jwt-bearer-with-dev-mint.md`](docs/adr/0007-jwt-bearer-with-dev-mint.md) — HS256 dev mint placement across BuildingBlocks + Host

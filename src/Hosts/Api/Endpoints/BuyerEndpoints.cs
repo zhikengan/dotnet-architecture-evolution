@@ -15,7 +15,7 @@ public static class BuyerEndpoints
 {
     public static IEndpointRouteBuilder MapBuyerEndpoints(this IEndpointRouteBuilder app)
     {
-        var g = app.MapGroup("/api/buyer").RequireRole("Buyer").WithTags("Buyer");
+        var g = app.MapGroup("/api/buyer").RequireAuthorization("Buyer").WithTags("Buyer");
 
         g.MapGet("/products", async (ICurrentUser user, ISender mediator, CancellationToken ct) =>
         {

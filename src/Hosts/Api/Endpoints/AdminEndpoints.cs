@@ -17,7 +17,7 @@ public static class AdminEndpoints
 {
     public static IEndpointRouteBuilder MapAdminEndpoints(this IEndpointRouteBuilder app)
     {
-        var g = app.MapGroup("/api/admin").RequireRole("Admin").WithTags("Admin");
+        var g = app.MapGroup("/api/admin").RequireAuthorization("Admin").WithTags("Admin");
 
         g.MapGet("/products", async (ISender mediator, CancellationToken ct) =>
         {

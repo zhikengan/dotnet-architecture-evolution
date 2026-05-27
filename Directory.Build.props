@@ -1,0 +1,18 @@
+<Project>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- NU1902/NU1903: transitive vulnerabilities flagged on packages we pull
+         in via Npgsql and OpenTelemetry. Latest releases are still flagged in
+         NuGet's DB; tracked upstream. Safe to ignore for this demo. -->
+    <NoWarn>$(NoWarn);NU1902;NU1903</NoWarn>
+    <LangVersion>latest</LangVersion>
+    <AnalysisLevel>latest</AnalysisLevel>
+    <RootNamespace>$(MSBuildProjectName)</RootNamespace>
+    <AssemblyName>$(MSBuildProjectName)</AssemblyName>
+  </PropertyGroup>
+
+</Project>

@@ -1,0 +1,25 @@
+name: identity-ci
+
+on:
+  pull_request:
+    paths:
+      - 'services/identity-service/**'
+      - 'shared/**'
+      - 'Directory.*.props'
+      - 'global.json'
+  push:
+    branches: [main, tier-5-microservices]
+    paths:
+      - 'services/identity-service/**'
+      - 'shared/**'
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with: { dotnet-version: '10.0.x' }
+      - run: dotnet restore services/identity-service/Identity.sln
+      - run: dotnet build services/identity-service/Identity.sln --no-restore -c Release
+      - run: dotnet test services/identity-service/Identity.sln --no-build -c Release --logger trx

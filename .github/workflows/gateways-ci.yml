@@ -1,0 +1,25 @@
+name: gateways-ci
+
+on:
+  pull_request:
+    paths:
+      - 'gateways/**'
+      - 'shared/**'
+      - 'Directory.*.props'
+      - 'global.json'
+  push:
+    branches: [main, tier-5-microservices]
+    paths:
+      - 'gateways/**'
+      - 'shared/**'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with: { dotnet-version: '10.0.x' }
+      - run: dotnet build gateways/buyer-bff/BuyerBff.csproj -c Release
+      - run: dotnet build gateways/seller-bff/SellerBff.csproj -c Release
+      - run: dotnet build gateways/admin-bff/AdminBff.csproj -c Release

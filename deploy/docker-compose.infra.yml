@@ -1,0 +1,46 @@
+name: marketplace-tier5-infra
+
+# Spin up just the infra (DBs + RabbitMQ + Jaeger) so a single service can be
+# developed locally against this stack:
+#
+#   cd deploy && docker compose -f docker-compose.infra.yml up -d
+#   cd ../services/catalog-service && dotnet run --project src/Catalog.Api
+
+services:
+  rabbitmq:
+    image: rabbitmq:4-management-alpine
+    ports: ["5672:5672", "15672:15672"]
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.66
+    ports: ["16686:16686", "4317:4317"]
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+
+  catalog-db:
+    image: postgres:17-alpine
+    ports: ["5433:5432"]
+    environment: { POSTGRES_DB: catalog, POSTGRES_USER: catalog, POSTGRES_PASSWORD: catalog }
+
+  orders-db:
+    image: postgres:17-alpine
+    ports: ["5434:5432"]
+    environment: { POSTGRES_DB: orders, POSTGRES_USER: orders, POSTGRES_PASSWORD: orders }
+
+  identity-db:
+    image: postgres:17-alpine
+    ports: ["5435:5432"]
+    environment: { POSTGRES_DB: identity, POSTGRES_USER: identity, POSTGRES_PASSWORD: identity }
+
+  notifications-db:
+    image: postgres:17-alpine
+    ports: ["5436:5432"]
+    environment: { POSTGRES_DB: notifications, POSTGRES_USER: notifications, POSTGRES_PASSWORD: notifications }
+
+  platform-db:
+    image: postgres:17-alpine
+    ports: ["5437:5432"]
+    environment: { POSTGRES_DB: platform, POSTGRES_USER: platform, POSTGRES_PASSWORD: platform }

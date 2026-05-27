@@ -1,0 +1,36 @@
+name: e2e
+
+on:
+  pull_request:
+    paths:
+      - 'services/**'
+      - 'gateways/**'
+      - 'shared/**'
+      - 'deploy/**'
+      - 'tests/e2e/**'
+      - '.github/workflows/e2e.yml'
+
+jobs:
+  saga:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with: { dotnet-version: '10.0.x' }
+      - name: Bring up the stack
+        run: cd deploy && docker compose up -d --build --wait
+      - name: Wait for health
+        run: |
+          for svc in identity-api catalog-api orders-api notifications-api platform-api buyer-bff seller-bff admin-bff; do
+            for i in {1..30}; do
+              curl -sf "http://localhost:$(docker port tier5-$svc 8080 | cut -d: -f2)/health" && break
+              sleep 2
+            done
+          done
+      - name: Smoke saga
+        run: |
+          # placeholder: real e2e tests live in tests/e2e/
+          curl -sf http://localhost:5300/health
+      - name: Tear down
+        if: always()
+        run: cd deploy && docker compose down -v

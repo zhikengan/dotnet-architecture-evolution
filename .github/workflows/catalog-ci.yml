@@ -1,0 +1,27 @@
+name: catalog-ci
+
+on:
+  pull_request:
+    paths:
+      - 'services/catalog-service/**'
+      - 'shared/**'
+      - 'Directory.*.props'
+      - 'global.json'
+      - '.github/workflows/catalog-ci.yml'
+  push:
+    branches: [main, tier-5-microservices]
+    paths:
+      - 'services/catalog-service/**'
+      - 'shared/**'
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - run: dotnet restore services/catalog-service/Catalog.sln
+      - run: dotnet build services/catalog-service/Catalog.sln --no-restore -c Release
+      - run: dotnet test services/catalog-service/Catalog.sln --no-build -c Release --logger trx

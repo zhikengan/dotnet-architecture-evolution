@@ -1,0 +1,25 @@
+name: notifications-ci
+
+on:
+  pull_request:
+    paths:
+      - 'services/notifications-service/**'
+      - 'shared/**'
+      - 'Directory.*.props'
+      - 'global.json'
+  push:
+    branches: [main, tier-5-microservices]
+    paths:
+      - 'services/notifications-service/**'
+      - 'shared/**'
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with: { dotnet-version: '10.0.x' }
+      - run: dotnet restore services/notifications-service/Notifications.sln
+      - run: dotnet build services/notifications-service/Notifications.sln --no-restore -c Release
+      - run: dotnet test services/notifications-service/Notifications.sln --no-build -c Release --logger trx

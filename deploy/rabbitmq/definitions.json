@@ -1,0 +1,14 @@
+{
+  "rabbit_version": "4.0.0",
+  "users": [
+    { "name": "guest", "password": "guest", "tags": ["administrator"] }
+  ],
+  "vhosts": [{ "name": "/" }],
+  "permissions": [
+    { "user": "guest", "vhost": "/", "configure": ".*", "write": ".*", "read": ".*" }
+  ],
+  "policies": [],
+  "queues": [],
+  "exchanges": [],
+  "bindings": []
+}

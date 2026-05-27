@@ -1,0 +1,260 @@
+name: marketplace-tier5
+
+services:
+  # --- Infrastructure ---
+  rabbitmq:
+    image: rabbitmq:4-management-alpine
+    container_name: tier5-rabbitmq
+    ports: ["5672:5672", "15672:15672"]
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - ./rabbitmq/definitions.json:/etc/rabbitmq/definitions.json:ro
+      - ./rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.66
+    container_name: tier5-jaeger
+    ports:
+      - "16686:16686"   # UI
+      - "4317:4317"     # OTLP gRPC
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+
+  # --- Databases (one per service) ---
+  catalog-db:
+    image: postgres:17-alpine
+    container_name: tier5-catalog-db
+    ports: ["5433:5432"]
+    environment:
+      POSTGRES_DB: catalog
+      POSTGRES_USER: catalog
+      POSTGRES_PASSWORD: catalog
+    healthcheck: { test: ["CMD-SHELL", "pg_isready -U catalog"], interval: 5s, retries: 10 }
+    volumes: ["catalog-data:/var/lib/postgresql/data"]
+
+  orders-db:
+    image: postgres:17-alpine
+    container_name: tier5-orders-db
+    ports: ["5434:5432"]
+    environment:
+      POSTGRES_DB: orders
+      POSTGRES_USER: orders
+      POSTGRES_PASSWORD: orders
+    healthcheck: { test: ["CMD-SHELL", "pg_isready -U orders"], interval: 5s, retries: 10 }
+    volumes: ["orders-data:/var/lib/postgresql/data"]
+
+  identity-db:
+    image: postgres:17-alpine
+    container_name: tier5-identity-db
+    ports: ["5435:5432"]
+    environment:
+      POSTGRES_DB: identity
+      POSTGRES_USER: identity
+      POSTGRES_PASSWORD: identity
+    healthcheck: { test: ["CMD-SHELL", "pg_isready -U identity"], interval: 5s, retries: 10 }
+    volumes: ["identity-data:/var/lib/postgresql/data"]
+
+  notifications-db:
+    image: postgres:17-alpine
+    container_name: tier5-notifications-db
+    ports: ["5436:5432"]
+    environment:
+      POSTGRES_DB: notifications
+      POSTGRES_USER: notifications
+      POSTGRES_PASSWORD: notifications
+    healthcheck: { test: ["CMD-SHELL", "pg_isready -U notifications"], interval: 5s, retries: 10 }
+    volumes: ["notifications-data:/var/lib/postgresql/data"]
+
+  platform-db:
+    image: postgres:17-alpine
+    container_name: tier5-platform-db
+    ports: ["5437:5432"]
+    environment:
+      POSTGRES_DB: platform
+      POSTGRES_USER: platform
+      POSTGRES_PASSWORD: platform
+    healthcheck: { test: ["CMD-SHELL", "pg_isready -U platform"], interval: 5s, retries: 10 }
+    volumes: ["platform-data:/var/lib/postgresql/data"]
+
+  # --- Services ---
+  identity-api:
+    build:
+      context: ..
+      dockerfile: services/identity-service/Dockerfile.api
+    container_name: tier5-identity-api
+    ports: ["5300:8080", "5301:8081"]
+    environment:
+      ConnectionStrings__Default: "Host=identity-db;Database=identity;Username=identity;Password=identity"
+      RabbitMq__Host: rabbitmq
+      Otel__Endpoint: "http://jaeger:4317"
+    depends_on:
+      identity-db: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+
+  catalog-api:
+    build:
+      context: ..
+      dockerfile: services/catalog-service/Dockerfile.api
+    container_name: tier5-catalog-api
+    ports: ["5100:8080", "5101:8081"]
+    environment:
+      ConnectionStrings__Default: "Host=catalog-db;Database=catalog;Username=catalog;Password=catalog"
+      RabbitMq__Host: rabbitmq
+      Otel__Endpoint: "http://jaeger:4317"
+      Identity__Authority: "http://identity-api:8080"
+    depends_on:
+      catalog-db: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+      identity-api: { condition: service_started }
+
+  catalog-worker:
+    build:
+      context: ..
+      dockerfile: services/catalog-service/Dockerfile.worker
+    container_name: tier5-catalog-worker
+    environment:
+      ConnectionStrings__Default: "Host=catalog-db;Database=catalog;Username=catalog;Password=catalog"
+      RabbitMq__Host: rabbitmq
+      Otel__Endpoint: "http://jaeger:4317"
+    depends_on:
+      catalog-db: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+      catalog-api: { condition: service_started }
+
+  orders-api:
+    build:
+      context: ..
+      dockerfile: services/orders-service/Dockerfile.api
+    container_name: tier5-orders-api
+    ports: ["5200:8080", "5201:8081"]
+    environment:
+      ConnectionStrings__Default: "Host=orders-db;Database=orders;Username=orders;Password=orders"
+      RabbitMq__Host: rabbitmq
+      Otel__Endpoint: "http://jaeger:4317"
+      Identity__Authority: "http://identity-api:8080"
+    depends_on:
+      orders-db: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+      identity-api: { condition: service_started }
+
+  orders-worker:
+    build:
+      context: ..
+      dockerfile: services/orders-service/Dockerfile.worker
+    container_name: tier5-orders-worker
+    environment:
+      ConnectionStrings__Default: "Host=orders-db;Database=orders;Username=orders;Password=orders"
+      RabbitMq__Host: rabbitmq
+      Otel__Endpoint: "http://jaeger:4317"
+    depends_on:
+      orders-db: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+      orders-api: { condition: service_started }
+
+  notifications-api:
+    build:
+      context: ..
+      dockerfile: services/notifications-service/Dockerfile.api
+    container_name: tier5-notifications-api
+    ports: ["5400:8080"]
+    environment:
+      ConnectionStrings__Default: "Host=notifications-db;Database=notifications;Username=notifications;Password=notifications"
+      RabbitMq__Host: rabbitmq
+      Otel__Endpoint: "http://jaeger:4317"
+      Identity__Authority: "http://identity-api:8080"
+    depends_on:
+      notifications-db: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+      identity-api: { condition: service_started }
+
+  notifications-worker:
+    build:
+      context: ..
+      dockerfile: services/notifications-service/Dockerfile.worker
+    container_name: tier5-notifications-worker
+    environment:
+      ConnectionStrings__Default: "Host=notifications-db;Database=notifications;Username=notifications;Password=notifications"
+      RabbitMq__Host: rabbitmq
+      Otel__Endpoint: "http://jaeger:4317"
+    depends_on:
+      notifications-db: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+      notifications-api: { condition: service_started }
+
+  platform-api:
+    build:
+      context: ..
+      dockerfile: services/platform-service/Dockerfile.api
+    container_name: tier5-platform-api
+    ports: ["5500:8080", "5501:8081"]
+    environment:
+      ConnectionStrings__Default: "Host=platform-db;Database=platform;Username=platform;Password=platform"
+      RabbitMq__Host: rabbitmq
+      Otel__Endpoint: "http://jaeger:4317"
+      Identity__Authority: "http://identity-api:8080"
+    depends_on:
+      platform-db: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+      identity-api: { condition: service_started }
+
+  # --- Gateways (BFFs) ---
+  buyer-bff:
+    build:
+      context: ..
+      dockerfile: gateways/buyer-bff/Dockerfile
+    container_name: tier5-buyer-bff
+    ports: ["5010:8080"]
+    environment:
+      Identity__Authority: "http://identity-api:8080"
+      Otel__Endpoint: "http://jaeger:4317"
+      ReverseProxy__Clusters__catalog__Destinations__primary__Address: "http://catalog-api:8080/"
+      ReverseProxy__Clusters__orders__Destinations__primary__Address: "http://orders-api:8080/"
+    depends_on:
+      identity-api: { condition: service_started }
+      catalog-api: { condition: service_started }
+      orders-api: { condition: service_started }
+
+  seller-bff:
+    build:
+      context: ..
+      dockerfile: gateways/seller-bff/Dockerfile
+    container_name: tier5-seller-bff
+    ports: ["5020:8080"]
+    environment:
+      Identity__Authority: "http://identity-api:8080"
+      Otel__Endpoint: "http://jaeger:4317"
+      ReverseProxy__Clusters__catalog__Destinations__primary__Address: "http://catalog-api:8080/"
+    depends_on:
+      identity-api: { condition: service_started }
+      catalog-api: { condition: service_started }
+
+  admin-bff:
+    build:
+      context: ..
+      dockerfile: gateways/admin-bff/Dockerfile
+    container_name: tier5-admin-bff
+    ports: ["5030:8080"]
+    environment:
+      Identity__Authority: "http://identity-api:8080"
+      Otel__Endpoint: "http://jaeger:4317"
+      ReverseProxy__Clusters__catalog__Destinations__primary__Address: "http://catalog-api:8080/"
+      ReverseProxy__Clusters__orders__Destinations__primary__Address: "http://orders-api:8080/"
+      ReverseProxy__Clusters__platform__Destinations__primary__Address: "http://platform-api:8080/"
+      ReverseProxy__Clusters__notifications__Destinations__primary__Address: "http://notifications-api:8080/"
+    depends_on:
+      identity-api: { condition: service_started }
+      catalog-api: { condition: service_started }
+      orders-api: { condition: service_started }
+      platform-api: { condition: service_started }
+      notifications-api: { condition: service_started }
+
+volumes:
+  catalog-data: {}
+  orders-data: {}
+  identity-data: {}
+  notifications-data: {}
+  platform-data: {}

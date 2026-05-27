@@ -3,6 +3,7 @@ using Marketplace.Infrastructure.Persistence;
 using Marketplace.Infrastructure.Persistence.Interceptors;
 using Marketplace.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Marketplace.Infrastructure;
@@ -11,13 +12,15 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddInfrastructureServices(
         this IServiceCollection services,
-        string connectionString)
+        IConfiguration configuration)
     {
         services.AddScoped<DomainEventDispatchInterceptor>();
 
         services.AddDbContext<AppDbContext>((sp, options) =>
         {
-            options.UseNpgsql(connectionString, npg => npg.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName));
+            var cs = configuration.GetConnectionString("Default")
+                ?? throw new InvalidOperationException("ConnectionStrings:Default is required");
+            options.UseNpgsql(cs, npg => npg.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName));
             options.AddInterceptors(sp.GetRequiredService<DomainEventDispatchInterceptor>());
         });
 

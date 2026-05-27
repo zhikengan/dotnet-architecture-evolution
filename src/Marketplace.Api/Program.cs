@@ -23,11 +23,8 @@ builder.Services.AddOptions<AppOptions>()
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUser, HttpCurrentUser>();
 
-var connectionString = builder.Configuration.GetConnectionString("Default")
-    ?? throw new InvalidOperationException("ConnectionStrings:Default is required");
-
 builder.Services.AddApplicationServices();
-builder.Services.AddInfrastructureServices(connectionString);
+builder.Services.AddInfrastructureServices(builder.Configuration);
 
 var app = builder.Build();
 

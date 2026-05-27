@@ -2,6 +2,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using BuildingBlocks.Application.MultiTenancy;
 using BuildingBlocks.Infrastructure.Authentication;
+using BuildingBlocks.Infrastructure.Outbox;
 using Catalog.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -48,6 +49,15 @@ public sealed class ApiFixture : WebApplicationFactory<Program>, IAsyncLifetime
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Development");
+
+        // Worker host runs the OutboxProcessor in prod; for e2e we co-locate
+        // it inside the API test process so the saga can complete in-band
+        // without spinning up a second host.
+        builder.ConfigureServices(services =>
+        {
+            services.AddHostedService<OutboxProcessor>();
+        });
+
         builder.ConfigureAppConfiguration((_, config) =>
         {
             config.AddInMemoryCollection(new Dictionary<string, string?>

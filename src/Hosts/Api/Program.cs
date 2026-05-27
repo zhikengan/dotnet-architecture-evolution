@@ -2,7 +2,6 @@ using BuildingBlocks.Api;
 using BuildingBlocks.Application;
 using BuildingBlocks.Application.Behaviors;
 using BuildingBlocks.Infrastructure.EventBus;
-using BuildingBlocks.Infrastructure.Outbox;
 using BuildingBlocks.Infrastructure.Storage;
 using BuildingBlocks.Infrastructure.Telemetry;
 using BuildingBlocks.Infrastructure.Time;
@@ -43,9 +42,8 @@ builder.Services.AddMarketplaceAuthentication(builder.Configuration);
 // File storage (S3 via MinIO in docker-compose; LocalFileStorage fallback in tests)
 builder.Services.AddMarketplaceStorage(builder.Configuration);
 
-// Outbox processor
-builder.Services.Configure<OutboxOptions>(builder.Configuration.GetSection(OutboxOptions.SectionName));
-builder.Services.AddHostedService<OutboxProcessor>();
+// Outbox processor moved out at Tier 4 — runs in src/Hosts/Worker now.
+// API host still publishes outbox rows but no longer dispatches them.
 
 // Open-generic MediatR pipeline behaviors. Registered AT THE HOST so they
 // run for every module's commands/queries.

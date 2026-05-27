@@ -1,19 +1,21 @@
 using Grpc.Core;
-using Microsoft.EntityFrameworkCore;
+using MediatR;
 using Platform.Api.Grpc;
-using Platform.Application.Abstractions;
+using Platform.Application.FeatureFlags.Queries;
 
 namespace Platform.Api.GrpcServices;
 
-public sealed class PlatformGrpcService(IPlatformDbContext db) : Platform.Api.Grpc.PlatformService.PlatformServiceBase
+/// <summary>
+/// gRPC adapter — delegates to MediatR queries against the Application layer.
+/// </summary>
+public sealed class PlatformGrpcService(ISender sender) : Platform.Api.Grpc.PlatformService.PlatformServiceBase
 {
     public override async Task<IsFeatureEnabledReply> IsFeatureEnabled(IsFeatureEnabledRequest request, ServerCallContext context)
     {
-        if (!Guid.TryParse(request.TenantId, out var tenantId))
-            return new IsFeatureEnabledReply { IsEnabled = false };
+        Guid? userId = Guid.TryParse(request.UserId, out var u) ? u : null;
+        Guid.TryParse(request.TenantId, out var tenantId);
 
-        var flag = await db.FeatureFlags.AsNoTracking()
-            .FirstOrDefaultAsync(f => f.TenantId == tenantId && f.Key == request.Key, context.CancellationToken);
-        return new IsFeatureEnabledReply { IsEnabled = flag is { IsEnabled: true } };
+        var result = await sender.Send(new IsFeatureEnabledQuery(tenantId, request.Key, userId), context.CancellationToken);
+        return new IsFeatureEnabledReply { IsEnabled = result.IsSuccess && result.Value };
     }
 }

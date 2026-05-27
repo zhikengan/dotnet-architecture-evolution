@@ -1,14 +1,16 @@
 using BuildingBlocks.Api;
 using BuildingBlocks.Application;
+using BuildingBlocks.Application.Behaviors;
 using BuildingBlocks.Infrastructure.Telemetry;
 using BuildingBlocks.Infrastructure.Time;
 using Catalog.Api.Endpoints;
 using Catalog.Api.GrpcServices;
 using Catalog.Application.Abstractions;
-using Catalog.Application.Products;
+using Catalog.Application.Products.CreateProduct;
 using Catalog.Infrastructure.Messaging;
 using Catalog.Infrastructure.Persistence;
 using FluentValidation;
+using MediatR;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -23,8 +25,10 @@ builder.Host.UseSerilog((ctx, lc) => lc
     .Enrich.WithProperty("service", ServiceName)
     .WriteTo.Console());
 
+builder.Services.AddHttpContextAccessor();
 builder.Services.AddSingleton<IClock, SystemClock>();
 builder.Services.AddScoped<ITenantContext, TenantContext>();
+builder.Services.AddScoped<ICurrentUser, HttpCurrentUser>();
 
 builder.Services.AddDbContext<CatalogDbContext>((sp, opt) =>
 {
@@ -37,10 +41,13 @@ builder.Services.AddScoped<ICatalogDbContext>(sp => sp.GetRequiredService<Catalo
 builder.Services.AddCatalogMessaging(builder.Configuration, registerConsumers: true);
 builder.Services.AddMarketplaceObservability(builder.Configuration, ServiceName);
 
-builder.Services.AddScoped<CreateProductHandler>();
-builder.Services.AddScoped<ListProductsForBuyerHandler>();
-builder.Services.AddScoped<ListProductsForAdminHandler>();
-builder.Services.AddScoped<ListProductsForSellerHandler>();
+builder.Services.AddMediatR(cfg =>
+{
+    cfg.RegisterServicesFromAssemblyContaining<CreateProductCommand>();
+    cfg.AddOpenBehavior(typeof(LoggingBehavior<,>));
+    cfg.AddOpenBehavior(typeof(AuthorizationBehavior<,>));
+    cfg.AddOpenBehavior(typeof(ValidationBehavior<,>));
+});
 builder.Services.AddValidatorsFromAssemblyContaining<CreateProductValidator>();
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)

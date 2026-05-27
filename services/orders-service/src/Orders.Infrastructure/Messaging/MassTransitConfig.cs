@@ -1,7 +1,7 @@
 using MassTransit;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Orders.Application.Consumers;
+using Orders.Application.EventHandlers.Integration;
 using Orders.Infrastructure.Persistence;
 
 namespace Orders.Infrastructure.Messaging;
@@ -27,8 +27,8 @@ public static class MassTransitConfig
 
             if (registerConsumers)
             {
-                x.AddConsumer<WhenStockDecrementedConsumer>();
-                x.AddConsumer<WhenStockDecrementFailedConsumer>();
+                x.AddConsumer<WhenStockDecremented_ConfirmOrder>();
+                x.AddConsumer<WhenStockDecrementFailed_FailOrder>();
             }
 
             x.UsingRabbitMq((ctx, cfg) =>

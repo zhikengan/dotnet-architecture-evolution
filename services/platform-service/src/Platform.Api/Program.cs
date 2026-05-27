@@ -1,13 +1,16 @@
+using BuildingBlocks.Api;
 using BuildingBlocks.Application;
+using BuildingBlocks.Application.Behaviors;
 using BuildingBlocks.Infrastructure.Telemetry;
 using BuildingBlocks.Infrastructure.Time;
+using MediatR;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Platform.Api.Endpoints;
 using Platform.Api.GrpcServices;
 using Platform.Application.Abstractions;
+using Platform.Application.FeatureFlags.Queries;
 using Platform.Infrastructure.Messaging;
 using Platform.Infrastructure.Persistence;
 using Serilog;
@@ -21,7 +24,9 @@ builder.Host.UseSerilog((ctx, lc) => lc
     .Enrich.WithProperty("service", ServiceName)
     .WriteTo.Console());
 
+builder.Services.AddHttpContextAccessor();
 builder.Services.AddSingleton<IClock, SystemClock>();
+builder.Services.AddScoped<ICurrentUser, HttpCurrentUser>();
 
 builder.Services.AddDbContext<PlatformDbContext>(opt =>
 {
@@ -34,12 +39,17 @@ builder.Services.AddScoped<IPlatformDbContext>(sp => sp.GetRequiredService<Platf
 builder.Services.AddPlatformMessaging(builder.Configuration);
 builder.Services.AddMarketplaceObservability(builder.Configuration, ServiceName);
 
-var jwksUrl = builder.Configuration["Identity:JwksUrl"] ?? "http://localhost:5300/.well-known/jwks.json";
+builder.Services.AddMediatR(cfg =>
+{
+    cfg.RegisterServicesFromAssemblyContaining<IsFeatureEnabledQuery>();
+    cfg.AddOpenBehavior(typeof(LoggingBehavior<,>));
+});
+
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(o =>
     {
-        o.Authority = builder.Configuration["Identity:Authority"] ?? "http://localhost:5300";
         o.RequireHttpsMetadata = false;
+        o.MetadataAddress = (builder.Configuration["Identity:Authority"] ?? "http://localhost:5300") + "/.well-known/openid-configuration";
         o.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer = true,
@@ -47,7 +57,6 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidIssuer = "marketplace-identity",
             ValidAudience = "marketplace",
         };
-        o.MetadataAddress = (builder.Configuration["Identity:Authority"] ?? "http://localhost:5300") + "/.well-known/openid-configuration";
     });
 
 builder.Services.AddAuthorization(opt =>

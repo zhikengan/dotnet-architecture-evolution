@@ -1,4 +1,4 @@
-using Catalog.Application.Consumers;
+using Catalog.Application.EventHandlers.Integration;
 using Catalog.Infrastructure.Persistence;
 using MassTransit;
 using Microsoft.Extensions.Configuration;
@@ -27,8 +27,8 @@ public static class MassTransitConfig
 
             if (registerConsumers)
             {
-                x.AddConsumer<WhenOrderPlacedConsumer>();
-                x.AddConsumer<WhenOrderCancelledConsumer>();
+                x.AddConsumer<WhenOrderPlaced_DecrementStock>();
+                x.AddConsumer<WhenOrderCancelled_ReturnStock>();
             }
 
             x.UsingRabbitMq((ctx, cfg) =>

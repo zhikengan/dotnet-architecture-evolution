@@ -7,18 +7,18 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Orders.Contracts.IntegrationEvents;
 
-namespace Catalog.Application.Consumers;
+namespace Catalog.Application.EventHandlers.Integration;
 
 /// <summary>
 /// Returns stock when an order is cancelled — but only if stock was
 /// previously decremented (i.e. the order had reached Confirmed). The
 /// integration event carries this flag from orders-service.
 /// </summary>
-public sealed class WhenOrderCancelledConsumer(
+public sealed class WhenOrderCancelled_ReturnStock(
     ICatalogDbContext db,
     IClock clock,
     ITenantContext tenant,
-    ILogger<WhenOrderCancelledConsumer> logger)
+    ILogger<WhenOrderCancelled_ReturnStock> logger)
     : IConsumer<OrderCancelledIntegrationEvent>
 {
     public async Task Consume(ConsumeContext<OrderCancelledIntegrationEvent> context)

@@ -1,10 +1,12 @@
 using BuildingBlocks.Api;
-using FluentValidation;
+using BuildingBlocks.Application;
+using MediatR;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
-using Orders.Application.Orders;
-using System.Security.Claims;
+using Orders.Application.Orders.CancelOwnOrder;
+using Orders.Application.Orders.PlaceOrder;
+using Orders.Application.Orders.Queries;
 
 namespace Orders.Api.Endpoints;
 
@@ -14,43 +16,33 @@ public static class BuyerOrderEndpoints
     {
         var grp = app.MapGroup("/api/buyer/orders").RequireAuthorization("buyer");
 
-        grp.MapPost("", async (
-            PlaceOrderCommand cmd,
-            PlaceOrderHandler handler,
-            IValidator<PlaceOrderCommand> validator,
-            HttpContext ctx,
-            CancellationToken ct) =>
+        grp.MapPost("", async (PlaceOrderCommand cmd, ICurrentUser user, ISender sender, CancellationToken ct) =>
         {
-            var validation = await validator.ValidateAsync(cmd, ct);
-            if (!validation.IsValid)
-                return Results.BadRequest(new { error = "Validation", details = validation.Errors.Select(e => e.ErrorMessage) });
-
-            var buyerIdClaim = ctx.User.FindFirst("sub")?.Value;
-            if (Guid.TryParse(buyerIdClaim, out var sub) && cmd.BuyerId != sub)
-                cmd = cmd with { BuyerId = sub };
-
-            var result = await handler.HandleAsync(cmd, ct);
+            if (!user.IsAuthenticated) return Results.Unauthorized();
+            // Force the BuyerId on the command to come from the JWT — clients can't impersonate.
+            if (cmd.BuyerId != user.UserId) cmd = cmd with { BuyerId = user.UserId };
+            var result = await sender.Send(cmd, ct);
             return result.ToHttpResult(value => Results.Created($"/api/buyer/orders/{value.OrderId}", value));
         });
 
-        grp.MapGet("", async (HttpContext ctx, ListOrdersForBuyerHandler handler, CancellationToken ct) =>
+        grp.MapGet("", async (ICurrentUser user, ISender sender, CancellationToken ct) =>
         {
-            if (!Guid.TryParse(ctx.User.FindFirst("sub")?.Value, out var buyerId)) return Results.Unauthorized();
-            var result = await handler.HandleAsync(buyerId, ct);
+            if (!user.IsAuthenticated) return Results.Unauthorized();
+            var result = await sender.Send(new ListOrdersForBuyerQuery(user.UserId), ct);
             return result.ToHttpResult();
         });
 
-        grp.MapGet("{id:guid}", async (Guid id, HttpContext ctx, GetOrderForBuyerHandler handler, CancellationToken ct) =>
+        grp.MapGet("{id:guid}", async (Guid id, ICurrentUser user, ISender sender, CancellationToken ct) =>
         {
-            if (!Guid.TryParse(ctx.User.FindFirst("sub")?.Value, out var buyerId)) return Results.Unauthorized();
-            var result = await handler.HandleAsync(id, buyerId, ct);
+            if (!user.IsAuthenticated) return Results.Unauthorized();
+            var result = await sender.Send(new GetOrderForBuyerQuery(id, user.UserId), ct);
             return result.ToHttpResult();
         });
 
-        grp.MapPost("{id:guid}/cancel", async (Guid id, HttpContext ctx, CancelOwnOrderHandler handler, CancellationToken ct) =>
+        grp.MapPost("{id:guid}/cancel", async (Guid id, ICurrentUser user, ISender sender, CancellationToken ct) =>
         {
-            if (!Guid.TryParse(ctx.User.FindFirst("sub")?.Value, out var buyerId)) return Results.Unauthorized();
-            var result = await handler.HandleAsync(new CancelOwnOrderCommand(id, buyerId), ct);
+            if (!user.IsAuthenticated) return Results.Unauthorized();
+            var result = await sender.Send(new CancelOwnOrderCommand(id, user.UserId), ct);
             return result.ToHttpResult();
         });
 

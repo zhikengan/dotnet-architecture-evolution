@@ -1,8 +1,9 @@
+using BuildingBlocks.Api;
+using MediatR;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
-using Microsoft.EntityFrameworkCore;
-using Platform.Application.Abstractions;
+using Platform.Application.FeatureFlags.Queries;
 
 namespace Platform.Api.Endpoints;
 
@@ -10,15 +11,13 @@ public static class AdminEndpoints
 {
     public static IEndpointRouteBuilder MapAdminEndpoints(this IEndpointRouteBuilder app)
     {
-        var grp = app.MapGroup("/api/admin/feature-flags");
+        var grp = app.MapGroup("/api/admin/feature-flags").RequireAuthorization("admin");
 
-        grp.MapGet("", async (IPlatformDbContext db, CancellationToken ct) =>
+        grp.MapGet("", async (ISender sender, CancellationToken ct) =>
         {
-            var flags = await db.FeatureFlags.AsNoTracking()
-                .Select(f => new { id = f.Id.Value, tenantId = f.TenantId, key = f.Key, isEnabled = f.IsEnabled, updatedAt = f.UpdatedAt })
-                .ToListAsync(ct);
-            return Results.Ok(flags);
-        }).RequireAuthorization("admin");
+            var result = await sender.Send(new ListFeatureFlagsQuery(), ct);
+            return result.ToHttpResult();
+        });
 
         return app;
     }

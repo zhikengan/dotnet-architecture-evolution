@@ -1,34 +1,34 @@
 using Grpc.Core;
-using Microsoft.EntityFrameworkCore;
+using MediatR;
 using Orders.Api.Grpc;
-using Orders.Application.Abstractions;
-using OrderIdValue = global::Orders.Domain.Orders.OrderId;
+using Orders.Application.Orders.Queries;
 
 namespace Orders.Api.GrpcServices;
 
-public sealed class OrdersGrpcService(IOrdersDbContext db) : Orders.Api.Grpc.OrdersService.OrdersServiceBase
+/// <summary>
+/// gRPC adapter — delegates to MediatR queries against the Application layer.
+/// </summary>
+public sealed class OrdersGrpcService(ISender sender) : Orders.Api.Grpc.OrdersService.OrdersServiceBase
 {
     public override async Task<OrderReply> GetOrder(GetOrderRequest request, ServerCallContext context)
     {
         if (!Guid.TryParse(request.OrderId, out var id))
             return new OrderReply { Found = false };
 
-        var oid = new OrderIdValue(id);
-        var dbContext = (DbContext)db;
-        var order = await dbContext.Set<Domain.Orders.Order>().IgnoreQueryFilters().AsNoTracking()
-            .FirstOrDefaultAsync(o => o.Id == oid, context.CancellationToken);
-        if (order is null) return new OrderReply { Found = false };
+        var result = await sender.Send(new GetOrderByIdQuery(id), context.CancellationToken);
+        if (result.IsFailure) return new OrderReply { Found = false };
 
+        var dto = result.Value;
         return new OrderReply
         {
             Found = true,
-            OrderId = order.Id.Value.ToString(),
-            TenantId = order.TenantId.ToString(),
-            BuyerId = order.BuyerId.ToString(),
-            ProductId = order.ProductId.ToString(),
-            Quantity = order.Quantity,
-            Status = order.Status.ToString(),
-            CreatedAt = order.CreatedAt.ToString("O"),
+            OrderId = dto.Id.ToString(),
+            TenantId = dto.TenantId.ToString(),
+            BuyerId = dto.BuyerId.ToString(),
+            ProductId = dto.ProductId.ToString(),
+            Quantity = dto.Quantity,
+            Status = dto.Status,
+            CreatedAt = dto.CreatedAt.ToString("O"),
         };
     }
 }

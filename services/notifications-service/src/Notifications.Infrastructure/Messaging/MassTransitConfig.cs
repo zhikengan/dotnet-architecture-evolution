@@ -1,7 +1,7 @@
 using MassTransit;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Notifications.Application.Consumers;
+using Notifications.Application.EventHandlers.Integration;
 using Notifications.Infrastructure.Persistence;
 
 namespace Notifications.Infrastructure.Messaging;
@@ -27,9 +27,9 @@ public static class MassTransitConfig
 
             if (registerConsumers)
             {
-                x.AddConsumer<WhenOrderConfirmedConsumer>();
-                x.AddConsumer<WhenOrderCancelledConsumer>();
-                x.AddConsumer<WhenOrderFailedConsumer>();
+                x.AddConsumer<WhenOrderConfirmed_SendNotification>();
+                x.AddConsumer<WhenOrderCancelled_SendNotification>();
+                x.AddConsumer<WhenOrderFailed_SendNotification>();
             }
 
             x.UsingRabbitMq((ctx, cfg) =>

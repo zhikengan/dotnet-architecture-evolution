@@ -1,43 +1,44 @@
 using Catalog.Api.Grpc;
-using Catalog.Application.Abstractions;
-using Catalog.Domain.Products;
+using Catalog.Application.Products.Queries;
 using Grpc.Core;
-using Microsoft.EntityFrameworkCore;
+using MediatR;
 
 namespace Catalog.Api.GrpcServices;
 
-public sealed class CatalogGrpcService(ICatalogDbContext db) : Catalog.Api.Grpc.CatalogService.CatalogServiceBase
+/// <summary>
+/// gRPC adapter — translates wire messages to MediatR queries against the
+/// Application layer. Persistence, tenant filtering, and authorization live
+/// inside the handlers, not here.
+/// </summary>
+public sealed class CatalogGrpcService(ISender sender) : Catalog.Api.Grpc.CatalogService.CatalogServiceBase
 {
     public override async Task<ProductReply> GetProduct(GetProductRequest request, ServerCallContext context)
     {
         if (!Guid.TryParse(request.ProductId, out var pid))
             return new ProductReply { Found = false };
 
-        var id = new ProductId(pid);
-        var product = await db.Products.IgnoreQueryFilters().AsNoTracking()
-            .FirstOrDefaultAsync(p => p.Id == id, context.CancellationToken);
-        if (product is null) return new ProductReply { Found = false };
-
-        return Map(product);
+        var result = await sender.Send(new GetProductByIdQuery(pid), context.CancellationToken);
+        if (result.IsFailure) return new ProductReply { Found = false };
+        return MapToReply(result.Value);
     }
 
     public override async Task<ListProductsReply> ListProducts(ListProductsRequest request, ServerCallContext context)
     {
-        var products = await db.Products.IgnoreQueryFilters().AsNoTracking().ToListAsync(context.CancellationToken);
+        var result = await sender.Send(new ListAllProductsQuery(), context.CancellationToken);
         var reply = new ListProductsReply();
-        reply.Products.AddRange(products.Select(Map));
+        if (result.IsSuccess) reply.Products.AddRange(result.Value.Select(MapToReply));
         return reply;
     }
 
-    private static ProductReply Map(Product p) => new()
+    private static ProductReply MapToReply(ProductDetailDto dto) => new()
     {
         Found = true,
-        ProductId = p.Id.Value.ToString(),
-        TenantId = p.TenantId.ToString(),
-        Name = p.Name,
-        Price = (double)p.Price.Amount,
-        Stock = p.Stock.Value,
-        Status = p.Status.ToString(),
-        SellerId = p.SellerId.ToString(),
+        ProductId = dto.Id.ToString(),
+        TenantId = dto.TenantId.ToString(),
+        Name = dto.Name,
+        Price = (double)dto.Price,
+        Stock = dto.Stock,
+        Status = dto.Status,
+        SellerId = dto.SellerId.ToString(),
     };
 }

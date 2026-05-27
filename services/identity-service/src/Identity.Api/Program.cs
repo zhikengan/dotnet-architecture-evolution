@@ -1,13 +1,16 @@
 using BuildingBlocks.Application;
+using BuildingBlocks.Application.Behaviors;
 using BuildingBlocks.Infrastructure.Telemetry;
 using BuildingBlocks.Infrastructure.Time;
 using Identity.Api.Endpoints;
 using Identity.Api.GrpcServices;
 using Identity.Application.Abstractions;
 using Identity.Application.Authentication;
+using Identity.Application.Users.Queries;
 using Identity.Infrastructure.Authentication;
 using Identity.Infrastructure.Messaging;
 using Identity.Infrastructure.Persistence;
+using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
 
@@ -34,6 +37,13 @@ builder.Services.AddScoped<IIdentityDbContext>(sp => sp.GetRequiredService<Ident
 
 builder.Services.AddIdentityMessaging(builder.Configuration);
 builder.Services.AddMarketplaceObservability(builder.Configuration, ServiceName);
+
+builder.Services.AddMediatR(cfg =>
+{
+    cfg.RegisterServicesFromAssemblyContaining<IssueDemoTokenQuery>();
+    cfg.AddOpenBehavior(typeof(LoggingBehavior<,>));
+});
+
 builder.Services.AddGrpc();
 
 var app = builder.Build();

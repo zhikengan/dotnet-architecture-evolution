@@ -1,8 +1,10 @@
 using BuildingBlocks.Api;
+using MediatR;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
-using Orders.Application.Orders;
+using Orders.Application.Orders.ForceCancelOrder;
+using Orders.Application.Orders.Queries;
 
 namespace Orders.Api.Endpoints;
 
@@ -12,15 +14,15 @@ public static class AdminOrderEndpoints
     {
         var grp = app.MapGroup("/api/admin/orders").RequireAuthorization("admin");
 
-        grp.MapGet("", async (ListOrdersForAdminHandler handler, CancellationToken ct) =>
+        grp.MapGet("", async (ISender sender, CancellationToken ct) =>
         {
-            var result = await handler.HandleAsync(ct);
+            var result = await sender.Send(new ListOrdersForAdminQuery(), ct);
             return result.ToHttpResult();
         });
 
-        grp.MapPost("{id:guid}/cancel", async (Guid id, ForceCancelOrderHandler handler, CancellationToken ct) =>
+        grp.MapPost("{id:guid}/cancel", async (Guid id, ISender sender, CancellationToken ct) =>
         {
-            var result = await handler.HandleAsync(new ForceCancelOrderCommand(id), ct);
+            var result = await sender.Send(new ForceCancelOrderCommand(id), ct);
             return result.ToHttpResult();
         });
 

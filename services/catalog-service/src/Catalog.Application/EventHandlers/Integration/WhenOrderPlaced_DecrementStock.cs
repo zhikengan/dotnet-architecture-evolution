@@ -7,20 +7,20 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Orders.Contracts.IntegrationEvents;
 
-namespace Catalog.Application.Consumers;
+namespace Catalog.Application.EventHandlers.Integration;
 
 /// <summary>
 /// Catalog side of the PlaceOrder saga. Tries to decrement stock for the
 /// ordered product; emits <see cref="StockDecrementedIntegrationEvent"/> on
 /// success or <see cref="StockDecrementFailedIntegrationEvent"/> otherwise.
-/// MassTransit's inbox handles dedup; the EF outbox makes the publish
-/// transactional with the SaveChanges below.
+/// MassTransit's inbox dedupes on message id; the EF outbox keeps the publish
+/// transactional with SaveChanges.
 /// </summary>
-public sealed class WhenOrderPlacedConsumer(
+public sealed class WhenOrderPlaced_DecrementStock(
     ICatalogDbContext db,
     IClock clock,
     ITenantContext tenant,
-    ILogger<WhenOrderPlacedConsumer> logger)
+    ILogger<WhenOrderPlaced_DecrementStock> logger)
     : IConsumer<OrderPlacedIntegrationEvent>
 {
     public async Task Consume(ConsumeContext<OrderPlacedIntegrationEvent> context)
@@ -55,7 +55,6 @@ public sealed class WhenOrderPlacedConsumer(
                 OrderId: evt.OrderId,
                 ProductId: evt.ProductId,
                 Reason: result.Error.Message));
-            // Do NOT save the stale aggregate state — discard.
             return;
         }
 

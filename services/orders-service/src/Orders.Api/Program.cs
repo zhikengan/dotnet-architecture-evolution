@@ -1,15 +1,17 @@
 using BuildingBlocks.Api;
 using BuildingBlocks.Application;
+using BuildingBlocks.Application.Behaviors;
 using BuildingBlocks.Infrastructure.Telemetry;
 using BuildingBlocks.Infrastructure.Time;
 using FluentValidation;
+using MediatR;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Orders.Api.Endpoints;
 using Orders.Api.GrpcServices;
 using Orders.Application.Abstractions;
-using Orders.Application.Orders;
+using Orders.Application.Orders.PlaceOrder;
 using Orders.Infrastructure.Messaging;
 using Orders.Infrastructure.Persistence;
 using Serilog;
@@ -23,8 +25,10 @@ builder.Host.UseSerilog((ctx, lc) => lc
     .Enrich.WithProperty("service", ServiceName)
     .WriteTo.Console());
 
+builder.Services.AddHttpContextAccessor();
 builder.Services.AddSingleton<IClock, SystemClock>();
 builder.Services.AddScoped<ITenantContext, TenantContext>();
+builder.Services.AddScoped<ICurrentUser, HttpCurrentUser>();
 
 builder.Services.AddDbContext<OrdersDbContext>((sp, opt) =>
 {
@@ -37,12 +41,13 @@ builder.Services.AddScoped<IOrdersDbContext>(sp => sp.GetRequiredService<OrdersD
 builder.Services.AddOrdersMessaging(builder.Configuration, registerConsumers: true);
 builder.Services.AddMarketplaceObservability(builder.Configuration, ServiceName);
 
-builder.Services.AddScoped<PlaceOrderHandler>();
-builder.Services.AddScoped<CancelOwnOrderHandler>();
-builder.Services.AddScoped<ForceCancelOrderHandler>();
-builder.Services.AddScoped<ListOrdersForBuyerHandler>();
-builder.Services.AddScoped<ListOrdersForAdminHandler>();
-builder.Services.AddScoped<GetOrderForBuyerHandler>();
+builder.Services.AddMediatR(cfg =>
+{
+    cfg.RegisterServicesFromAssemblyContaining<PlaceOrderCommand>();
+    cfg.AddOpenBehavior(typeof(LoggingBehavior<,>));
+    cfg.AddOpenBehavior(typeof(AuthorizationBehavior<,>));
+    cfg.AddOpenBehavior(typeof(ValidationBehavior<,>));
+});
 builder.Services.AddValidatorsFromAssemblyContaining<PlaceOrderValidator>();
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)

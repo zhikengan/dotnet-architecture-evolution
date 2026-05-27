@@ -1,11 +1,10 @@
 using BuildingBlocks.Api;
-using BuildingBlocks.Application;
-using Catalog.Application.Abstractions;
-using Catalog.Application.Products;
+using Catalog.Application.Products.Queries;
+using Catalog.Application.Products.SuspendProduct;
+using MediatR;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
-using Microsoft.EntityFrameworkCore;
 
 namespace Catalog.Api.Endpoints;
 
@@ -15,19 +14,16 @@ public static class AdminEndpoints
     {
         var grp = app.MapGroup("/api/admin").RequireAuthorization("admin");
 
-        grp.MapGet("/products", async (ListProductsForAdminHandler handler, CancellationToken ct) =>
+        grp.MapGet("/products", async (ISender sender, CancellationToken ct) =>
         {
-            var result = await handler.HandleAsync(ct);
+            var result = await sender.Send(new ListProductsForAdminQuery(), ct);
             return result.ToHttpResult();
         });
 
-        grp.MapPost("/products/{id:guid}/suspend", async (Guid id, ICatalogDbContext db, CancellationToken ct) =>
+        grp.MapPost("/products/{id:guid}/suspend", async (Guid id, ISender sender, CancellationToken ct) =>
         {
-            var product = await db.Products.IgnoreQueryFilters().FirstOrDefaultAsync(p => p.Id == new Catalog.Domain.Products.ProductId(id), ct);
-            if (product is null) return Results.NotFound();
-            product.Suspend();
-            await db.SaveChangesAsync(ct);
-            return Results.NoContent();
+            var result = await sender.Send(new SuspendProductCommand(id), ct);
+            return result.ToHttpResult();
         });
 
         return app;

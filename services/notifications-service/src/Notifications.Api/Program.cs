@@ -1,10 +1,15 @@
+using BuildingBlocks.Api;
 using BuildingBlocks.Application;
+using BuildingBlocks.Application.Behaviors;
 using BuildingBlocks.Infrastructure.Telemetry;
 using BuildingBlocks.Infrastructure.Time;
+using MediatR;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Notifications.Api.Endpoints;
 using Notifications.Application.Abstractions;
+using Notifications.Application.Notifications.Queries;
 using Notifications.Infrastructure.Messaging;
 using Notifications.Infrastructure.Persistence;
 using Serilog;
@@ -18,7 +23,9 @@ builder.Host.UseSerilog((ctx, lc) => lc
     .Enrich.WithProperty("service", ServiceName)
     .WriteTo.Console());
 
+builder.Services.AddHttpContextAccessor();
 builder.Services.AddSingleton<IClock, SystemClock>();
+builder.Services.AddScoped<ICurrentUser, HttpCurrentUser>();
 
 builder.Services.AddDbContext<NotificationsDbContext>(opt =>
 {
@@ -30,6 +37,12 @@ builder.Services.AddScoped<INotificationsDbContext>(sp => sp.GetRequiredService<
 
 builder.Services.AddNotificationsMessaging(builder.Configuration, registerConsumers: true);
 builder.Services.AddMarketplaceObservability(builder.Configuration, ServiceName);
+
+builder.Services.AddMediatR(cfg =>
+{
+    cfg.RegisterServicesFromAssemblyContaining<ListNotificationsByOrderQuery>();
+    cfg.AddOpenBehavior(typeof(LoggingBehavior<,>));
+});
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(o =>
@@ -63,16 +76,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok", service = ServiceName }));
-
-app.MapGet("/admin/notifications/by-order/{orderId:guid}", async (Guid orderId, INotificationsDbContext db, CancellationToken ct) =>
-{
-    var rows = await db.Notifications.AsNoTracking()
-        .Where(n => n.RelatedOrderId == orderId)
-        .OrderByDescending(n => n.SentAt)
-        .Select(n => new { id = n.Id.Value, tenantId = n.TenantId, type = n.Type, recipient = n.Recipient, body = n.Body, sentAt = n.SentAt })
-        .ToListAsync(ct);
-    return Results.Ok(rows);
-}).RequireAuthorization("admin");
+app.MapAdminNotificationEndpoints();
 
 await app.RunAsync();
 

@@ -1,4 +1,5 @@
 using BuildingBlocks.Application;
+using BuildingBlocks.Application.Behaviors;
 using BuildingBlocks.Domain;
 using Catalog.Application.Abstractions;
 using Catalog.Contracts.IntegrationEvents;
@@ -6,10 +7,15 @@ using Catalog.Domain.Products;
 using Catalog.Domain.Products.Errors;
 using FluentValidation;
 using MassTransit;
+using MediatR;
 
-namespace Catalog.Application.Products;
+namespace Catalog.Application.Products.CreateProduct;
 
-public sealed record CreateProductCommand(string Name, decimal Price, int Stock, Guid SellerId);
+public sealed record CreateProductCommand(string Name, decimal Price, int Stock, Guid SellerId)
+    : IRequest<Result<CreateProductResult>>, IAuthorizationRequirement
+{
+    public string[] AllowedRoles { get; } = ["Seller"];
+}
 
 public sealed record CreateProductResult(Guid Id, string Name, decimal Price, int Stock, string Status);
 
@@ -29,8 +35,9 @@ public sealed class CreateProductHandler(
     IClock clock,
     ITenantContext tenant,
     IPublishEndpoint bus)
+    : IRequestHandler<CreateProductCommand, Result<CreateProductResult>>
 {
-    public async Task<Result<CreateProductResult>> HandleAsync(CreateProductCommand cmd, CancellationToken ct)
+    public async Task<Result<CreateProductResult>> Handle(CreateProductCommand cmd, CancellationToken ct)
     {
         if (!tenant.IsSet || tenant.TenantId == Guid.Empty)
             return Result.Failure<CreateProductResult>(ProductErrors.InvalidTenant);

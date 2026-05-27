@@ -1,5 +1,6 @@
 using BuildingBlocks.Api;
-using Catalog.Application.Products;
+using Catalog.Application.Products.Queries;
+using MediatR;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -12,9 +13,9 @@ public static class BuyerEndpoints
     {
         var grp = app.MapGroup("/api/buyer").RequireAuthorization("buyer");
 
-        grp.MapGet("/products", async (ListProductsForBuyerHandler handler, CancellationToken ct) =>
+        grp.MapGet("/products", async (ISender sender, CancellationToken ct) =>
         {
-            var result = await handler.HandleAsync(ct);
+            var result = await sender.Send(new ListProductsForBuyerQuery(), ct);
             return result.ToHttpResult();
         });
 

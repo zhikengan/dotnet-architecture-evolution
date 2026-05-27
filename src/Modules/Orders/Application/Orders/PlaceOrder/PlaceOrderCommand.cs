@@ -1,9 +1,11 @@
 using BuildingBlocks.Application;
 using BuildingBlocks.Application.Behaviors;
+using BuildingBlocks.Application.MultiTenancy;
 using BuildingBlocks.Domain;
 using FluentValidation;
 using MediatR;
 using Orders.Application.Abstractions;
+using Orders.Domain.Orders.Errors;
 using OrderAggregate = global::Orders.Domain.Orders.Order;
 
 namespace Orders.Application.Orders.PlaceOrder;
@@ -26,11 +28,14 @@ public sealed class PlaceOrderValidator : AbstractValidator<PlaceOrderCommand>
     }
 }
 
-public sealed class PlaceOrderHandler(IOrdersDbContext db, IClock clock) : IRequestHandler<PlaceOrderCommand, Result<PlaceOrderResult>>
+public sealed class PlaceOrderHandler(IOrdersDbContext db, IClock clock, ITenantContext tenant) : IRequestHandler<PlaceOrderCommand, Result<PlaceOrderResult>>
 {
     public async Task<Result<PlaceOrderResult>> Handle(PlaceOrderCommand cmd, CancellationToken ct)
     {
-        var order = OrderAggregate.Create(cmd.BuyerId, cmd.ProductId, cmd.Quantity, clock.UtcNow);
+        if (!tenant.IsSet || tenant.TenantId == Guid.Empty)
+            return Result.Failure<PlaceOrderResult>(OrderErrors.InvalidTenant);
+
+        var order = OrderAggregate.Create(cmd.BuyerId, cmd.ProductId, cmd.Quantity, tenant.TenantId, clock.UtcNow);
         if (order.IsFailure) return Result.Failure<PlaceOrderResult>(order.Error);
 
         db.Orders.Add(order.Value);

@@ -1,3 +1,5 @@
+using BuildingBlocks.Application.MultiTenancy;
+using BuildingBlocks.Infrastructure.MultiTenancy;
 using Catalog.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Testcontainers.PostgreSql;
@@ -6,6 +8,8 @@ namespace Catalog.IntegrationTests;
 
 public sealed class CatalogDbFixture : IAsyncLifetime
 {
+    public static readonly Guid AcmeTenantId = new("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+
     private readonly PostgreSqlContainer _container = new PostgreSqlBuilder()
         .WithImage("postgres:17-alpine")
         .WithDatabase("catalog_test")
@@ -24,16 +28,21 @@ public sealed class CatalogDbFixture : IAsyncLifetime
 
     public Task DisposeAsync() => _container.DisposeAsync().AsTask();
 
-    public CatalogDbContext CreateContext() =>
-        new(new DbContextOptionsBuilder<CatalogDbContext>().UseNpgsql(ConnectionString).Options);
+    public CatalogDbContext CreateContext(Guid? tenantId = null)
+    {
+        var tenant = new TenantContext();
+        ((ITenantContextSetter)tenant).SetTenant(tenantId ?? AcmeTenantId);
+        return new CatalogDbContext(
+            new DbContextOptionsBuilder<CatalogDbContext>().UseNpgsql(ConnectionString).Options,
+            tenant);
+    }
 
     public async Task ResetAsync()
     {
         await using var db = CreateContext();
-        db.OutboxMessages.RemoveRange(db.OutboxMessages);
-        db.InboxMessages.RemoveRange(db.InboxMessages);
-        db.Products.RemoveRange(db.Products);
-        await db.SaveChangesAsync();
+        await db.OutboxMessages.ExecuteDeleteAsync();
+        await db.InboxMessages.ExecuteDeleteAsync();
+        await db.Products.IgnoreQueryFilters().ExecuteDeleteAsync();
     }
 }
 

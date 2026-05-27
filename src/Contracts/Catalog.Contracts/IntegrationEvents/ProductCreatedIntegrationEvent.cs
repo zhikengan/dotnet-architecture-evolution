@@ -5,6 +5,7 @@ namespace Catalog.Contracts.IntegrationEvents;
 public sealed record ProductCreatedIntegrationEvent(
     Guid MessageId,
     DateTime OccurredAt,
+    Guid TenantId,
     Guid ProductId,
     string Name,
     decimal Price,

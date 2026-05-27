@@ -38,7 +38,9 @@ public static class PlatformModule
         services.AddSingleton(sp => sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<PlatformOptions>>().Value);
 
         services.AddMemoryCache();
-        services.AddSingleton<IFeatureFlagQuery, DbFeatureManager>();
+        // Scoped — needs the request's ITenantContext + PlatformDbContext so
+        // tenant query filters and cache keys resolve to the right tenant.
+        services.AddScoped<IFeatureFlagQuery, DbFeatureManager>();
 
         services.AddScoped<IIdempotencyStore, PlatformIdempotencyStore>();
 

@@ -16,7 +16,7 @@ public class OrdersPersistenceTests(OrdersDbFixture fx) : IAsyncLifetime
     {
         var buyer = Guid.NewGuid();
         var product = Guid.NewGuid();
-        var order = OrderAggregate.Create(buyer, product, 3, DateTime.UtcNow).Value;
+        var order = OrderAggregate.Create(buyer, product, 3, OrdersDbFixture.AcmeTenantId, DateTime.UtcNow).Value;
         order.ClearDomainEvents();
 
         await using (var db = fx.CreateContext())
@@ -58,7 +58,7 @@ public class OrdersPersistenceTests(OrdersDbFixture fx) : IAsyncLifetime
     [Fact]
     public async Task Outbox_Enqueue_persists_OrderPlacedIntegrationEvent()
     {
-        var evt = new OrderPlacedIntegrationEvent(Guid.NewGuid(), DateTime.UtcNow, Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), 5);
+        var evt = new OrderPlacedIntegrationEvent(Guid.NewGuid(), DateTime.UtcNow, OrdersDbFixture.AcmeTenantId, Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), 5);
         await using (var db = fx.CreateContext())
         {
             db.OutboxMessages.Enqueue(evt);

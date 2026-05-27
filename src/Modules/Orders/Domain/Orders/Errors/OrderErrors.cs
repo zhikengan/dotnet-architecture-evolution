@@ -5,6 +5,7 @@ namespace Orders.Domain.Orders.Errors;
 public static class OrderErrors
 {
     public static readonly Error InvalidBuyer = new("Order.InvalidBuyer", "BuyerId is required");
+    public static readonly Error InvalidTenant = new("Order.InvalidTenant", "Order tenant is required");
     public static readonly Error InvalidProduct = new("Order.InvalidProduct", "ProductId is required");
     public static readonly Error InvalidQuantity = new("Order.InvalidQuantity", "Quantity must be a positive integer");
     public static readonly Error NotFound = new("Order.NotFound", "Order not found");

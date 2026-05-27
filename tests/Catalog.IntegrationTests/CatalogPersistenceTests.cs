@@ -15,7 +15,7 @@ public class CatalogPersistenceTests(CatalogDbFixture fx) : IAsyncLifetime
     public async Task Product_round_trips_value_objects()
     {
         var seller = Guid.NewGuid();
-        var product = Product.Create("Widget", Money.Usd(12.50m), 25, seller, DateTime.UtcNow).Value;
+        var product = Product.Create("Widget", Money.Usd(12.50m), 25, seller, CatalogDbFixture.AcmeTenantId, DateTime.UtcNow).Value;
         product.ClearDomainEvents();
 
         await using (var db = fx.CreateContext())
@@ -36,7 +36,7 @@ public class CatalogPersistenceTests(CatalogDbFixture fx) : IAsyncLifetime
     public async Task OutboxMessage_Enqueue_persists_integration_event_payload_as_jsonb()
     {
         var evt = new ProductCreatedIntegrationEvent(
-            Guid.NewGuid(), DateTime.UtcNow, Guid.NewGuid(), "Test", 9.99m, 100, Guid.NewGuid());
+            Guid.NewGuid(), DateTime.UtcNow, CatalogDbFixture.AcmeTenantId, Guid.NewGuid(), "Test", 9.99m, 100, Guid.NewGuid());
 
         await using (var db = fx.CreateContext())
         {
@@ -57,8 +57,8 @@ public class CatalogPersistenceTests(CatalogDbFixture fx) : IAsyncLifetime
     {
         await using (var db = fx.CreateContext())
         {
-            var published = Product.Create("Pub", Money.Usd(10m), 5, Guid.NewGuid(), DateTime.UtcNow).Value;
-            var suspended = Product.Create("Susp", Money.Usd(10m), 5, Guid.NewGuid(), DateTime.UtcNow).Value;
+            var published = Product.Create("Pub", Money.Usd(10m), 5, Guid.NewGuid(), CatalogDbFixture.AcmeTenantId, DateTime.UtcNow).Value;
+            var suspended = Product.Create("Susp", Money.Usd(10m), 5, Guid.NewGuid(), CatalogDbFixture.AcmeTenantId, DateTime.UtcNow).Value;
             suspended.Suspend();
             published.ClearDomainEvents();
             suspended.ClearDomainEvents();

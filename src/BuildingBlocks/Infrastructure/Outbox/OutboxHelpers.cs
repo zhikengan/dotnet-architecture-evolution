@@ -12,6 +12,7 @@ public static class OutboxHelpers
             Id = integrationEvent.MessageId == Guid.Empty ? Guid.NewGuid() : integrationEvent.MessageId,
             Type = integrationEvent.GetType().AssemblyQualifiedName!,
             Payload = JsonSerializer.Serialize(integrationEvent, integrationEvent.GetType()),
+            TenantId = integrationEvent.TenantId,
             OccurredAt = integrationEvent.OccurredAt == default ? DateTime.UtcNow : integrationEvent.OccurredAt,
         };
 

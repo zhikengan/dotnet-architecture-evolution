@@ -7,11 +7,12 @@ namespace Platform.UnitTests;
 public class FeatureFlagTests
 {
     private static readonly DateTime Now = new(2026, 5, 27, 10, 0, 0, DateTimeKind.Utc);
+    private static readonly Guid Tenant = new("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
 
     [Fact]
     public void Create_with_valid_data_succeeds()
     {
-        var r = FeatureFlag.Create("X", true, 50, Now);
+        var r = FeatureFlag.Create("X", Tenant, true, 50, Now);
         r.IsSuccess.Should().BeTrue();
         r.Value.Id.Should().Be("X");
         r.Value.Enabled.Should().BeTrue();
@@ -23,7 +24,7 @@ public class FeatureFlagTests
     [InlineData("   ")]
     public void Create_with_empty_name_fails(string name)
     {
-        var r = FeatureFlag.Create(name, true, 0, Now);
+        var r = FeatureFlag.Create(name, Tenant, true, 0, Now);
         r.Error.Should().Be(FeatureFlagErrors.InvalidName);
     }
 
@@ -32,14 +33,14 @@ public class FeatureFlagTests
     [InlineData(101)]
     public void Create_with_invalid_rollout_fails(int pct)
     {
-        var r = FeatureFlag.Create("X", true, pct, Now);
+        var r = FeatureFlag.Create("X", Tenant, true, pct, Now);
         r.Error.Should().Be(FeatureFlagErrors.InvalidRolloutPercentage);
     }
 
     [Fact]
     public void SetRolloutPercentage_updates_value_and_timestamp()
     {
-        var flag = FeatureFlag.Create("X", true, 0, Now).Value;
+        var flag = FeatureFlag.Create("X", Tenant, true, 0, Now).Value;
         var later = Now.AddHours(1);
         flag.SetRolloutPercentage(75, later).IsSuccess.Should().BeTrue();
         flag.RolloutPercentage.Should().Be(75);
@@ -49,7 +50,7 @@ public class FeatureFlagTests
     [Fact]
     public void SetRolloutPercentage_out_of_range_fails()
     {
-        var flag = FeatureFlag.Create("X", true, 0, Now).Value;
+        var flag = FeatureFlag.Create("X", Tenant, true, 0, Now).Value;
         flag.SetRolloutPercentage(101, Now).IsFailure.Should().BeTrue();
         flag.RolloutPercentage.Should().Be(0);
     }
@@ -57,7 +58,7 @@ public class FeatureFlagTests
     [Fact]
     public void Toggle_flips_Enabled()
     {
-        var flag = FeatureFlag.Create("X", true, 0, Now).Value;
+        var flag = FeatureFlag.Create("X", Tenant, true, 0, Now).Value;
         flag.Toggle(Now);
         flag.Enabled.Should().BeFalse();
         flag.Toggle(Now);
@@ -67,7 +68,7 @@ public class FeatureFlagTests
     [Fact]
     public void EnableForUser_adds_user_and_is_idempotent()
     {
-        var flag = FeatureFlag.Create("X", true, 0, Now).Value;
+        var flag = FeatureFlag.Create("X", Tenant, true, 0, Now).Value;
         var user = Guid.NewGuid();
         flag.EnableForUser(user, Now);
         flag.EnableForUser(user, Now);

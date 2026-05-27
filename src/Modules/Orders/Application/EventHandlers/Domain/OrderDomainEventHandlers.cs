@@ -12,7 +12,7 @@ public sealed class PublishOrderPlacedHandler(IOrdersDbContext db, IClock clock)
     public Task Handle(OrderPlaced e, CancellationToken ct)
     {
         db.OutboxMessages.Enqueue(new OrderPlacedIntegrationEvent(
-            Guid.NewGuid(), clock.UtcNow, e.OrderId.Value, e.BuyerId, e.ProductId, e.Quantity));
+            Guid.NewGuid(), clock.UtcNow, e.TenantId, e.OrderId.Value, e.BuyerId, e.ProductId, e.Quantity));
         return Task.CompletedTask;
     }
 }
@@ -22,7 +22,7 @@ public sealed class PublishOrderCancelledHandler(IOrdersDbContext db, IClock clo
     public Task Handle(OrderCancelled e, CancellationToken ct)
     {
         db.OutboxMessages.Enqueue(new OrderCancelledIntegrationEvent(
-            Guid.NewGuid(), clock.UtcNow, e.OrderId.Value, e.ProductId, e.Quantity, e.StockWasDecremented));
+            Guid.NewGuid(), clock.UtcNow, e.TenantId, e.OrderId.Value, e.ProductId, e.Quantity, e.StockWasDecremented));
         return Task.CompletedTask;
     }
 }

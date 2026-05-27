@@ -1,5 +1,7 @@
 using System.Text;
+using BuildingBlocks.Application.MultiTenancy;
 using BuildingBlocks.Infrastructure.Authentication;
+using BuildingBlocks.Infrastructure.MultiTenancy;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -23,6 +25,12 @@ public static class AuthDependencyInjection
             .ValidateOnStart();
 
         services.AddSingleton<JwtTokenIssuer>();
+
+        // Scoped tenant context — same instance resolves via both interfaces,
+        // so middleware/outbox can set it while application/domain code reads.
+        services.AddScoped<TenantContext>();
+        services.AddScoped<ITenantContext>(sp => sp.GetRequiredService<TenantContext>());
+        services.AddScoped<ITenantContextSetter>(sp => sp.GetRequiredService<TenantContext>());
 
         services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             .AddJwtBearer(options =>

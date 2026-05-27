@@ -11,6 +11,8 @@ public sealed class ProductConfiguration : IEntityTypeConfiguration<Product>
         e.ToTable("products");
         e.HasKey(p => p.Id);
         e.Property(p => p.Id).HasConversion(id => id.Value, v => new ProductId(v)).HasColumnName("id");
+        e.Property(p => p.TenantId).HasColumnName("tenant_id").IsRequired();
+        e.HasIndex(p => p.TenantId);
         e.Property(p => p.Name).HasColumnName("name").HasMaxLength(200).IsRequired();
         e.OwnsOne(p => p.Price, m =>
         {

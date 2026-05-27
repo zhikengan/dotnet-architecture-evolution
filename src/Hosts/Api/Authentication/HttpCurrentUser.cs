@@ -5,10 +5,10 @@ namespace Marketplace.Api.Authentication;
 
 /// <summary>
 /// <see cref="ICurrentUser"/> backed by the request's <see cref="ClaimsPrincipal"/>.
-/// Reads <c>NameIdentifier</c> (subject) and <c>Role</c> claims populated by the
-/// JwtBearer middleware after it validates the bearer token. Lives at the host
-/// rather than BuildingBlocks because it's bound to HttpContext — an HTTP-host
-/// concept the shared kernel doesn't need to depend on.
+/// Reads <c>NameIdentifier</c> (subject), <c>Role</c>, and <c>tenant_id</c>
+/// claims populated by the JwtBearer middleware after it validates the bearer
+/// token. Lives at the host rather than BuildingBlocks because it's bound to
+/// <c>HttpContext</c> — an HTTP-host concept the shared kernel doesn't need.
 /// </summary>
 public sealed class HttpCurrentUser(IHttpContextAccessor accessor) : ICurrentUser
 {
@@ -25,4 +25,13 @@ public sealed class HttpCurrentUser(IHttpContextAccessor accessor) : ICurrentUse
 
     public string Role =>
         accessor.HttpContext?.User.FindFirstValue(ClaimTypes.Role) ?? string.Empty;
+
+    public Guid TenantId
+    {
+        get
+        {
+            var raw = accessor.HttpContext?.User.FindFirstValue(TenantMiddleware.TenantClaimType);
+            return Guid.TryParse(raw, out var g) ? g : Guid.Empty;
+        }
+    }
 }

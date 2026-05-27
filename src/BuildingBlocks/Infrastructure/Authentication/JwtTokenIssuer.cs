@@ -8,16 +8,16 @@ using Microsoft.IdentityModel.Tokens;
 namespace BuildingBlocks.Infrastructure.Authentication;
 
 /// <summary>
-/// Signs HS256 JWTs for the configured issuer/audience. Lives in
-/// <c>BuildingBlocks.Infrastructure</c> (shared kernel) so any host can
-/// resolve it — it's a real-world adapter (crypto + <see cref="IClock"/>),
-/// sibling to the outbox/inbox/event-bus services in this layer.
+/// Signs JWTs for the configured issuer/audience. Tier 4 still ships HS256
+/// at the multi-tenancy commit; the RS256 upgrade lands in the dedicated JWT
+/// commit later in this tier. Lives in <c>BuildingBlocks.Infrastructure</c>
+/// so any host can resolve it.
 /// </summary>
 public sealed class JwtTokenIssuer(IOptions<JwtOptions> options, IClock clock)
 {
     private readonly JwtOptions _opts = options.Value;
 
-    public (string Token, DateTime ExpiresAt) Mint(Guid userId, string role)
+    public (string Token, DateTime ExpiresAt) Mint(Guid userId, string role, Guid tenantId)
     {
         var now = clock.UtcNow;
         var expires = now.AddMinutes(_opts.LifetimeMinutes);
@@ -39,6 +39,7 @@ public sealed class JwtTokenIssuer(IOptions<JwtOptions> options, IClock clock)
                 new Claim(ClaimTypes.NameIdentifier, userId.ToString()),
                 new Claim(ClaimTypes.Role, role),
                 new Claim("role", role),
+                new Claim("tenant_id", tenantId.ToString()),
                 new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString("N")),
             ]),
         };

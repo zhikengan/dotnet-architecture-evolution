@@ -14,11 +14,13 @@ public sealed class OutboxMessageConfiguration : IEntityTypeConfiguration<Outbox
         e.Property(m => m.Id).HasColumnName("id");
         e.Property(m => m.Type).HasColumnName("type").HasMaxLength(500).IsRequired();
         e.Property(m => m.Payload).HasColumnName("payload").HasColumnType("jsonb").IsRequired();
+        e.Property(m => m.TenantId).HasColumnName("tenant_id");
         e.Property(m => m.OccurredAt).HasColumnName("occurred_at");
         e.Property(m => m.ProcessedAt).HasColumnName("processed_at");
         e.Property(m => m.RetryCount).HasColumnName("retry_count");
         e.Property(m => m.LastError).HasColumnName("last_error");
         e.HasIndex(m => m.ProcessedAt);
+        e.HasIndex(m => m.TenantId);
     }
 }
 

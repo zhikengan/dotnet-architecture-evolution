@@ -5,6 +5,7 @@ namespace Orders.Contracts.IntegrationEvents;
 public sealed record OrderPlacedIntegrationEvent(
     Guid MessageId,
     DateTime OccurredAt,
+    Guid TenantId,
     Guid OrderId,
     Guid BuyerId,
     Guid ProductId,
@@ -13,6 +14,7 @@ public sealed record OrderPlacedIntegrationEvent(
 public sealed record OrderCancelledIntegrationEvent(
     Guid MessageId,
     DateTime OccurredAt,
+    Guid TenantId,
     Guid OrderId,
     Guid ProductId,
     int Quantity,

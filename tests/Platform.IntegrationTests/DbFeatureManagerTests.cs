@@ -1,3 +1,5 @@
+using BuildingBlocks.Application.MultiTenancy;
+using BuildingBlocks.Infrastructure.MultiTenancy;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
 using Platform.Domain.FeatureFlags;
@@ -26,7 +28,7 @@ public class DbFeatureManagerTests(PlatformDbFixture fx) : IAsyncLifetime
         var user = Guid.NewGuid();
         await using (var db = fx.CreateContext())
         {
-            var flag = FeatureFlag.Create("F", enabled: false, rolloutPercentage: 0, DateTime.UtcNow).Value;
+            var flag = FeatureFlag.Create("F", PlatformDbFixture.AcmeTenantId, enabled: false, rolloutPercentage: 0, now: DateTime.UtcNow).Value;
             flag.EnableForUser(user, DateTime.UtcNow);
             db.FeatureFlags.Add(flag);
             await db.SaveChangesAsync();
@@ -40,7 +42,7 @@ public class DbFeatureManagerTests(PlatformDbFixture fx) : IAsyncLifetime
     {
         await using (var db = fx.CreateContext())
         {
-            var flag = FeatureFlag.Create("F", enabled: true, rolloutPercentage: 100, DateTime.UtcNow).Value;
+            var flag = FeatureFlag.Create("F", PlatformDbFixture.AcmeTenantId, enabled: true, rolloutPercentage: 100, now: DateTime.UtcNow).Value;
             db.FeatureFlags.Add(flag);
             await db.SaveChangesAsync();
         }
@@ -54,7 +56,7 @@ public class DbFeatureManagerTests(PlatformDbFixture fx) : IAsyncLifetime
     {
         await using (var db = fx.CreateContext())
         {
-            var flag = FeatureFlag.Create("F", enabled: false, rolloutPercentage: 100, DateTime.UtcNow).Value;
+            var flag = FeatureFlag.Create("F", PlatformDbFixture.AcmeTenantId, enabled: false, rolloutPercentage: 100, now: DateTime.UtcNow).Value;
             db.FeatureFlags.Add(flag);
             await db.SaveChangesAsync();
         }
@@ -64,11 +66,9 @@ public class DbFeatureManagerTests(PlatformDbFixture fx) : IAsyncLifetime
 
     private DbFeatureManager CreateManager(out IMemoryCache cache)
     {
-        var services = new ServiceCollection();
-        services.AddSingleton<PlatformDbContext>(_ => fx.CreateContext());
-        var sp = services.BuildServiceProvider();
-        var scopeFactory = sp.GetRequiredService<IServiceScopeFactory>();
+        var tenant = new TenantContext();
+        ((ITenantContextSetter)tenant).SetTenant(PlatformDbFixture.AcmeTenantId);
         cache = new MemoryCache(new MemoryCacheOptions());
-        return new DbFeatureManager(scopeFactory, cache, new PlatformOptions { CacheSeconds = 1 });
+        return new DbFeatureManager(fx.CreateContext(), tenant, cache, new PlatformOptions { CacheSeconds = 1 });
     }
 }

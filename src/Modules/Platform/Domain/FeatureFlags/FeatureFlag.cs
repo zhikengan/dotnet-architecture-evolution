@@ -1,10 +1,12 @@
 using BuildingBlocks.Domain;
+using BuildingBlocks.Domain.MultiTenancy;
 using Platform.Domain.FeatureFlags.Errors;
 
 namespace Platform.Domain.FeatureFlags;
 
-public sealed class FeatureFlag : Entity<string>
+public sealed class FeatureFlag : Entity<string>, IMultiTenant
 {
+    public Guid TenantId { get; private set; }
     public bool Enabled { get; private set; }
     public int RolloutPercentage { get; private set; }
     public List<Guid> EnabledUserIds { get; private set; } = new();
@@ -12,16 +14,19 @@ public sealed class FeatureFlag : Entity<string>
 
     private FeatureFlag() { }
 
-    public static Result<FeatureFlag> Create(string name, bool enabled, int rolloutPercentage, DateTime now)
+    public static Result<FeatureFlag> Create(string name, Guid tenantId, bool enabled, int rolloutPercentage, DateTime now)
     {
         if (string.IsNullOrWhiteSpace(name) || name.Length > 100)
             return Result.Failure<FeatureFlag>(FeatureFlagErrors.InvalidName);
+        if (tenantId == Guid.Empty)
+            return Result.Failure<FeatureFlag>(FeatureFlagErrors.InvalidTenant);
         if (rolloutPercentage is < 0 or > 100)
             return Result.Failure<FeatureFlag>(FeatureFlagErrors.InvalidRolloutPercentage);
 
         return Result.Success(new FeatureFlag
         {
             Id = name,
+            TenantId = tenantId,
             Enabled = enabled,
             RolloutPercentage = rolloutPercentage,
             UpdatedAt = now,

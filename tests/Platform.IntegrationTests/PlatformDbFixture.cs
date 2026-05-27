@@ -1,3 +1,5 @@
+using BuildingBlocks.Application.MultiTenancy;
+using BuildingBlocks.Infrastructure.MultiTenancy;
 using Microsoft.EntityFrameworkCore;
 using Platform.Infrastructure.Persistence;
 using Testcontainers.PostgreSql;
@@ -6,6 +8,8 @@ namespace Platform.IntegrationTests;
 
 public sealed class PlatformDbFixture : IAsyncLifetime
 {
+    public static readonly Guid AcmeTenantId = new("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+
     private readonly PostgreSqlContainer _container = new PostgreSqlBuilder()
         .WithImage("postgres:17-alpine")
         .WithDatabase("platform_test")
@@ -24,15 +28,21 @@ public sealed class PlatformDbFixture : IAsyncLifetime
 
     public Task DisposeAsync() => _container.DisposeAsync().AsTask();
 
-    public PlatformDbContext CreateContext() =>
-        new(new DbContextOptionsBuilder<PlatformDbContext>().UseNpgsql(ConnectionString).Options);
+    public PlatformDbContext CreateContext(Guid? tenantId = null)
+    {
+        var tenant = new TenantContext();
+        ((ITenantContextSetter)tenant).SetTenant(tenantId ?? AcmeTenantId);
+        return new PlatformDbContext(
+            new DbContextOptionsBuilder<PlatformDbContext>().UseNpgsql(ConnectionString).Options,
+            tenant);
+    }
 
     public async Task ResetAsync()
     {
         await using var db = CreateContext();
-        db.FeatureFlags.RemoveRange(db.FeatureFlags);
-        db.IdempotencyKeys.RemoveRange(db.IdempotencyKeys);
-        await db.SaveChangesAsync();
+        await db.FeatureFlags.IgnoreQueryFilters().ExecuteDeleteAsync();
+        await db.IdempotencyKeys.ExecuteDeleteAsync();
+        await db.Tenants.ExecuteDeleteAsync();
     }
 }
 

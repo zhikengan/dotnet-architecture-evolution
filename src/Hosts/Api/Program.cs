@@ -76,6 +76,7 @@ var app = builder.Build();
 app.UseSerilogRequestLogging();
 app.UseMiddleware<CorrelationMiddleware>();
 app.UseAuthentication();
+app.UseMiddleware<TenantMiddleware>();
 app.UseAuthorization();
 
 // Migrate + seed in Development only (forbidden in production paths per Tier 3 rules).

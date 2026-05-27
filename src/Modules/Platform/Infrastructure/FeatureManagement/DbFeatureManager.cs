@@ -1,15 +1,21 @@
 using System.Security.Cryptography;
 using System.Text;
+using BuildingBlocks.Application.MultiTenancy;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
-using Microsoft.Extensions.DependencyInjection;
 using Platform.Contracts;
 using Platform.Domain.FeatureFlags;
 using Platform.Infrastructure.Persistence;
 
 namespace Platform.Infrastructure.FeatureManagement;
 
-public sealed class DbFeatureManager(IServiceScopeFactory scopeFactory, IMemoryCache cache, PlatformOptions options) : IFeatureFlagQuery
+/// <summary>
+/// Scoped because it needs the request's <see cref="ITenantContext"/> for both
+/// the cache key and the DbContext's tenant query filter. A previous design
+/// resolved the DbContext via <c>IServiceScopeFactory</c> from a singleton —
+/// that loses the ambient tenant.
+/// </summary>
+public sealed class DbFeatureManager(PlatformDbContext db, ITenantContext tenant, IMemoryCache cache, PlatformOptions options) : IFeatureFlagQuery
 {
     public async ValueTask<bool> IsEnabledAsync(string flagName, Guid userId, CancellationToken ct = default)
     {
@@ -27,15 +33,15 @@ public sealed class DbFeatureManager(IServiceScopeFactory scopeFactory, IMemoryC
 
     private async Task<FeatureFlag?> GetFlagAsync(string name, CancellationToken ct)
     {
-        if (cache.TryGetValue<FeatureFlag>(name, out var cached))
+        var cacheKey = $"flag::{tenant.TenantId}::{name}";
+
+        if (cache.TryGetValue<FeatureFlag>(cacheKey, out var cached))
             return cached;
 
-        using var scope = scopeFactory.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<PlatformDbContext>();
         var flag = await db.FeatureFlags.AsNoTracking().FirstOrDefaultAsync(f => f.Id == name, ct);
         if (flag is not null)
         {
-            cache.Set(name, flag, TimeSpan.FromSeconds(options.CacheSeconds));
+            cache.Set(cacheKey, flag, TimeSpan.FromSeconds(options.CacheSeconds));
         }
         return flag;
     }

@@ -12,7 +12,7 @@ public sealed class PublishProductCreatedHandler(ICatalogDbContext db, IClock cl
     public Task Handle(ProductCreated e, CancellationToken ct)
     {
         db.OutboxMessages.Enqueue(new ProductCreatedIntegrationEvent(
-            Guid.NewGuid(), clock.UtcNow, e.ProductId.Value, e.Name, e.Price, e.Stock, e.SellerId));
+            Guid.NewGuid(), clock.UtcNow, e.TenantId, e.ProductId.Value, e.Name, e.Price, e.Stock, e.SellerId));
         return Task.CompletedTask;
     }
 }
@@ -22,7 +22,7 @@ public sealed class PublishStockDecrementedHandler(ICatalogDbContext db, IClock 
     public Task Handle(StockDecremented e, CancellationToken ct)
     {
         db.OutboxMessages.Enqueue(new StockDecrementedIntegrationEvent(
-            Guid.NewGuid(), clock.UtcNow, e.OrderId, e.ProductId.Value, e.Quantity));
+            Guid.NewGuid(), clock.UtcNow, e.TenantId, e.OrderId, e.ProductId.Value, e.Quantity));
         return Task.CompletedTask;
     }
 }
@@ -32,7 +32,7 @@ public sealed class PublishStockDecrementFailedHandler(ICatalogDbContext db, ICl
     public Task Handle(StockDecrementFailed e, CancellationToken ct)
     {
         db.OutboxMessages.Enqueue(new StockDecrementFailedIntegrationEvent(
-            Guid.NewGuid(), clock.UtcNow, e.OrderId, e.ProductId.Value, e.Reason));
+            Guid.NewGuid(), clock.UtcNow, e.TenantId, e.OrderId, e.ProductId.Value, e.Reason));
         return Task.CompletedTask;
     }
 }

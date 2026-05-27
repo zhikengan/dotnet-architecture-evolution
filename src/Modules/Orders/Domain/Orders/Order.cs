@@ -1,11 +1,13 @@
 using BuildingBlocks.Domain;
+using BuildingBlocks.Domain.MultiTenancy;
 using Orders.Domain.Orders.Errors;
 using Orders.Domain.Orders.Events;
 
 namespace Orders.Domain.Orders;
 
-public sealed class Order : AggregateRoot<OrderId>
+public sealed class Order : AggregateRoot<OrderId>, IMultiTenant
 {
+    public Guid TenantId { get; private set; }
     public Guid BuyerId { get; private set; }
     public Guid ProductId { get; private set; }
     public int Quantity { get; private set; }
@@ -15,22 +17,24 @@ public sealed class Order : AggregateRoot<OrderId>
 
     private Order() { }
 
-    public static Result<Order> Create(Guid buyerId, Guid productId, int quantity, DateTime now)
+    public static Result<Order> Create(Guid buyerId, Guid productId, int quantity, Guid tenantId, DateTime now)
     {
         if (buyerId == Guid.Empty) return Result.Failure<Order>(OrderErrors.InvalidBuyer);
         if (productId == Guid.Empty) return Result.Failure<Order>(OrderErrors.InvalidProduct);
         if (quantity < 1) return Result.Failure<Order>(OrderErrors.InvalidQuantity);
+        if (tenantId == Guid.Empty) return Result.Failure<Order>(OrderErrors.InvalidTenant);
 
         var order = new Order
         {
             Id = OrderId.New(),
+            TenantId = tenantId,
             BuyerId = buyerId,
             ProductId = productId,
             Quantity = quantity,
             Status = OrderStatus.Pending,
             CreatedAt = now,
         };
-        order.RaiseDomainEvent(new OrderPlaced(order.Id, buyerId, productId, quantity));
+        order.RaiseDomainEvent(new OrderPlaced(order.Id, tenantId, buyerId, productId, quantity));
         return Result.Success(order);
     }
 
@@ -38,7 +42,7 @@ public sealed class Order : AggregateRoot<OrderId>
     {
         if (Status != OrderStatus.Pending) return Result.Failure(OrderErrors.NotPending);
         Status = OrderStatus.Confirmed;
-        RaiseDomainEvent(new OrderConfirmed(Id));
+        RaiseDomainEvent(new OrderConfirmed(Id, TenantId));
         return Result.Success();
     }
 
@@ -50,7 +54,7 @@ public sealed class Order : AggregateRoot<OrderId>
 
         var wasConfirmed = Status == OrderStatus.Confirmed;
         Status = OrderStatus.Cancelled;
-        RaiseDomainEvent(new OrderCancelled(Id, ProductId, Quantity, wasConfirmed));
+        RaiseDomainEvent(new OrderCancelled(Id, TenantId, ProductId, Quantity, wasConfirmed));
         return Result.Success();
     }
 
@@ -61,7 +65,7 @@ public sealed class Order : AggregateRoot<OrderId>
 
         var wasConfirmed = Status == OrderStatus.Confirmed;
         Status = OrderStatus.Cancelled;
-        RaiseDomainEvent(new OrderCancelled(Id, ProductId, Quantity, wasConfirmed));
+        RaiseDomainEvent(new OrderCancelled(Id, TenantId, ProductId, Quantity, wasConfirmed));
         return Result.Success();
     }
 
@@ -70,6 +74,6 @@ public sealed class Order : AggregateRoot<OrderId>
         if (Status != OrderStatus.Pending) return;
         Status = OrderStatus.Failed;
         FailureReason = reason;
-        RaiseDomainEvent(new OrderFailed(Id, reason));
+        RaiseDomainEvent(new OrderFailed(Id, TenantId, reason));
     }
 }

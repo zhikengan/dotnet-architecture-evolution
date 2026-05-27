@@ -1,8 +1,10 @@
 using BuildingBlocks.Application;
 using BuildingBlocks.Application.Behaviors;
+using BuildingBlocks.Application.MultiTenancy;
 using BuildingBlocks.Domain;
 using Catalog.Application.Abstractions;
 using Catalog.Domain.Products;
+using Catalog.Domain.Products.Errors;
 using FluentValidation;
 using MediatR;
 
@@ -27,14 +29,17 @@ public sealed class CreateProductValidator : AbstractValidator<CreateProductComm
     }
 }
 
-public sealed class CreateProductHandler(ICatalogDbContext db, IClock clock) : IRequestHandler<CreateProductCommand, Result<CreateProductResult>>
+public sealed class CreateProductHandler(ICatalogDbContext db, IClock clock, ITenantContext tenant) : IRequestHandler<CreateProductCommand, Result<CreateProductResult>>
 {
     public async Task<Result<CreateProductResult>> Handle(CreateProductCommand cmd, CancellationToken ct)
     {
+        if (!tenant.IsSet || tenant.TenantId == Guid.Empty)
+            return Result.Failure<CreateProductResult>(ProductErrors.InvalidTenant);
+
         var money = Money.Create(cmd.Price, Money.UsdCode);
         if (money.IsFailure) return Result.Failure<CreateProductResult>(money.Error);
 
-        var product = Product.Create(cmd.Name, money.Value, cmd.Stock, cmd.SellerId, clock.UtcNow);
+        var product = Product.Create(cmd.Name, money.Value, cmd.Stock, cmd.SellerId, tenant.TenantId, clock.UtcNow);
         if (product.IsFailure) return Result.Failure<CreateProductResult>(product.Error);
 
         db.Products.Add(product.Value);

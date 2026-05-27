@@ -9,8 +9,12 @@ public sealed class FeatureFlagConfiguration : IEntityTypeConfiguration<FeatureF
     public void Configure(EntityTypeBuilder<FeatureFlag> e)
     {
         e.ToTable("feature_flags");
-        e.HasKey(f => f.Id);
+        // Composite key (TenantId, Name) — each tenant has its own copy of any
+        // given flag, so the same flag name can be in different rollout states
+        // across tenants.
+        e.HasKey(f => new { f.TenantId, f.Id });
         e.Property(f => f.Id).HasColumnName("name").HasMaxLength(100);
+        e.Property(f => f.TenantId).HasColumnName("tenant_id").IsRequired();
         e.Property(f => f.Enabled).HasColumnName("enabled");
         e.Property(f => f.RolloutPercentage).HasColumnName("rollout_percentage");
         e.Property(f => f.EnabledUserIds)

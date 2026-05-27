@@ -13,6 +13,8 @@ public sealed class OrderConfiguration : IEntityTypeConfiguration<Order>
         e.ToTable("orders");
         e.HasKey(o => o.Id);
         e.Property(o => o.Id).HasConversion(id => id.Value, v => new OrderId(v)).HasColumnName("id");
+        e.Property(o => o.TenantId).HasColumnName("tenant_id").IsRequired();
+        e.HasIndex(o => o.TenantId);
         e.Property(o => o.BuyerId).HasColumnName("buyer_id");
         e.Property(o => o.ProductId).HasColumnName("product_id");
         e.Property(o => o.Quantity).HasColumnName("quantity");
@@ -34,11 +36,13 @@ public sealed class OutboxMessageConfiguration : IEntityTypeConfiguration<Outbox
         e.Property(m => m.Id).HasColumnName("id");
         e.Property(m => m.Type).HasColumnName("type").HasMaxLength(500).IsRequired();
         e.Property(m => m.Payload).HasColumnName("payload").HasColumnType("jsonb").IsRequired();
+        e.Property(m => m.TenantId).HasColumnName("tenant_id");
         e.Property(m => m.OccurredAt).HasColumnName("occurred_at");
         e.Property(m => m.ProcessedAt).HasColumnName("processed_at");
         e.Property(m => m.RetryCount).HasColumnName("retry_count");
         e.Property(m => m.LastError).HasColumnName("last_error");
         e.HasIndex(m => m.ProcessedAt);
+        e.HasIndex(m => m.TenantId);
     }
 }
 

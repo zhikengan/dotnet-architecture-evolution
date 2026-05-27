@@ -1,3 +1,5 @@
+using BuildingBlocks.Application.MultiTenancy;
+using BuildingBlocks.Domain;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -13,6 +15,15 @@ public sealed class InMemoryEventBus(
         var handlerType = typeof(IIntegrationEventHandler<>).MakeGenericType(eventType);
 
         using var scope = rootProvider.CreateScope();
+
+        // Lift TenantId from the event onto the ambient context so subscriber
+        // DbContexts apply the correct query filter. Done once per dispatch so
+        // every handler in this scope sees the same tenant.
+        if (integrationEvent is IIntegrationEvent envelope && envelope.TenantId != Guid.Empty)
+        {
+            scope.ServiceProvider.GetRequiredService<ITenantContextSetter>().SetTenant(envelope.TenantId);
+        }
+
         var handlers = scope.ServiceProvider.GetServices(handlerType).Where(h => h is not null).ToList();
 
         if (handlers.Count == 0)
@@ -38,5 +49,5 @@ public sealed class InMemoryEventBus(
         }
     }
 
-    private sealed record DummyEvent(Guid MessageId, DateTime OccurredAt) : BuildingBlocks.Domain.IIntegrationEvent;
+    private sealed record DummyEvent(Guid MessageId, DateTime OccurredAt, Guid TenantId) : IIntegrationEvent;
 }

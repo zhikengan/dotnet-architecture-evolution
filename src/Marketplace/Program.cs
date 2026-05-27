@@ -1,4 +1,5 @@
 using Marketplace.Data;
+using Marketplace.Endpoints;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -15,6 +16,9 @@ using (var scope = app.Services.CreateScope())
 }
 
 app.MapGet("/", () => "Marketplace MVP — Tier 1");
+app.MapSellerEndpoints();
+app.MapBuyerEndpoints();
+app.MapAdminEndpoints();
 
 app.Run();
 

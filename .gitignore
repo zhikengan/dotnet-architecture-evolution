@@ -1,0 +1,35 @@
+# Build outputs
+bin/
+obj/
+out/
+
+# IDE
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+
+# Test results
+TestResults/
+coverage/
+*.trx
+
+# Logs
+logs/
+*.log
+
+# Local secrets
+appsettings.Local.json
+appsettings.Development.local.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker volumes (if mounted)
+data/
+
+# Pact
+pacts/
+pact-logs/

@@ -45,10 +45,15 @@
     <!-- ASP.NET Core Testing -->
     <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.0" />
 
-    <!-- JWT (HS256 dev mint at Tier 3; Tier 4 graduates to RS256 + real issuer) -->
+    <!-- JWT (RS256 + demo issuer at Tier 4) -->
     <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.0" />
     <PackageVersion Include="Microsoft.IdentityModel.JsonWebTokens" Version="8.2.0" />
     <PackageVersion Include="Microsoft.IdentityModel.Tokens" Version="8.2.0" />
+    <PackageVersion Include="System.IdentityModel.Tokens.Jwt" Version="8.2.0" />
+
+    <!-- S3-compatible storage (MinIO in dev/CI; same SDK against AWS in prod) -->
+    <PackageVersion Include="AWSSDK.S3" Version="3.7.416.4" />
+    <PackageVersion Include="Testcontainers.Minio" Version="4.0.0" />
 
     <!-- Testing -->
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />

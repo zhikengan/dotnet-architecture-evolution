@@ -3,6 +3,7 @@ using BuildingBlocks.Application;
 using BuildingBlocks.Application.Behaviors;
 using BuildingBlocks.Infrastructure.EventBus;
 using BuildingBlocks.Infrastructure.Outbox;
+using BuildingBlocks.Infrastructure.Storage;
 using BuildingBlocks.Infrastructure.Telemetry;
 using BuildingBlocks.Infrastructure.Time;
 using Catalog;
@@ -38,6 +39,9 @@ builder.Services.AddSingleton<IEventBus, InMemoryEventBus>();
 
 // Authentication + authorization (JwtBearer + role policies; shared via BuildingBlocks)
 builder.Services.AddMarketplaceAuthentication(builder.Configuration);
+
+// File storage (S3 via MinIO in docker-compose; LocalFileStorage fallback in tests)
+builder.Services.AddMarketplaceStorage(builder.Configuration);
 
 // Outbox processor
 builder.Services.Configure<OutboxOptions>(builder.Configuration.GetSection(OutboxOptions.SectionName));

@@ -6,6 +6,7 @@ using BuildingBlocks.Infrastructure.Outbox;
 using BuildingBlocks.Infrastructure.Telemetry;
 using BuildingBlocks.Infrastructure.Time;
 using Catalog;
+using Marketplace.Worker.Configuration;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
@@ -46,6 +47,9 @@ builder.Services.AddOrdersModule(builder.Configuration);
 // Outbox processor lives here, not in the API host (Tier 3's location).
 builder.Services.Configure<OutboxOptions>(builder.Configuration.GetSection(OutboxOptions.SectionName));
 builder.Services.AddHostedService<OutboxProcessor>();
+
+// Quartz — deterministic schedules (cron-style) live in the Worker.
+builder.Services.AddMarketplaceQuartz(builder.Environment);
 
 // OpenTelemetry — same exports as the API host so traces span both processes.
 builder.Services.AddOpenTelemetry()

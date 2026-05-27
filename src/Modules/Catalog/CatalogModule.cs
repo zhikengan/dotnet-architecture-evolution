@@ -1,13 +1,16 @@
+using BuildingBlocks.Infrastructure.EventBus;
 using BuildingBlocks.Infrastructure.Inbox;
 using BuildingBlocks.Infrastructure.Outbox;
 using BuildingBlocks.Infrastructure.Persistence;
 using Catalog.Application.Abstractions;
+using Catalog.Application.EventHandlers.Integration;
 using Catalog.Infrastructure.Persistence;
 using FluentValidation;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Orders.Contracts.IntegrationEvents;
 
 namespace Catalog;
 
@@ -37,6 +40,9 @@ public static class CatalogModule
         services.AddScoped<ICatalogDbContext>(sp => sp.GetRequiredService<CatalogDbContext>());
         services.AddScoped<IOutboxStore, CatalogOutboxStore>();
         services.AddScoped<CatalogInboxStore>();
+
+        services.AddScoped<IIntegrationEventHandler<OrderPlacedIntegrationEvent>, WhenOrderPlaced_DecrementStock>();
+        services.AddScoped<IIntegrationEventHandler<OrderCancelledIntegrationEvent>, WhenOrderCancelled_ReturnStock>();
 
         return services;
     }

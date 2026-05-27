@@ -1,12 +1,15 @@
+using BuildingBlocks.Infrastructure.EventBus;
 using BuildingBlocks.Infrastructure.Inbox;
 using BuildingBlocks.Infrastructure.Outbox;
 using BuildingBlocks.Infrastructure.Persistence;
+using Catalog.Contracts.IntegrationEvents;
 using FluentValidation;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Orders.Application.Abstractions;
+using Orders.Application.EventHandlers.Integration;
 using Orders.Infrastructure.Persistence;
 
 namespace Orders;
@@ -37,6 +40,9 @@ public static class OrdersModule
         services.AddScoped<IOrdersDbContext>(sp => sp.GetRequiredService<OrdersDbContext>());
         services.AddScoped<IOutboxStore, OrdersOutboxStore>();
         services.AddScoped<OrdersInboxStore>();
+
+        services.AddScoped<IIntegrationEventHandler<StockDecrementedIntegrationEvent>, WhenStockDecremented_ConfirmOrder>();
+        services.AddScoped<IIntegrationEventHandler<StockDecrementFailedIntegrationEvent>, WhenStockDecrementFailed_FailOrder>();
 
         return services;
     }

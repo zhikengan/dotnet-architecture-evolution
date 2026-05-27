@@ -5,7 +5,7 @@ COPY ["src/", "src/"]
 RUN dotnet publish src/Marketplace.Api/Marketplace.Api.csproj -c Release -o /app /p:UseAppHost=false
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine
-RUN adduser -D -u 1000 app && mkdir -p /app && chown app:app /app
+# The base image ships with a non-root 'app' user; reuse it.
 WORKDIR /app
 COPY --from=build --chown=app:app /app .
 USER app

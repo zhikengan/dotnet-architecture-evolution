@@ -1,0 +1,103 @@
+### Tier 2 marketplace demo — REST Client requests
+### Open in VS Code with the REST Client extension and run requests top-to-bottom.
+### Seed product IDs are dynamic at Tier 2 (no deterministic Guids); the chained
+### named requests below fetch them at runtime.
+
+@host = http://localhost:5000
+@sellerId = 11111111-1111-1111-1111-111111111111
+@buyerId  = 22222222-2222-2222-2222-222222222222
+@otherBuyerId = 44444444-4444-4444-4444-444444444444
+@adminId  = 33333333-3333-3333-3333-333333333333
+
+### Fetch published products (alphabetical: Doohickey, Gizmo, Widget)
+# @name listed
+GET {{host}}/api/buyer/products
+X-User-Role: Buyer
+X-User-Id: {{buyerId}}
+
+### S1: Seller creates a product -> 201
+POST {{host}}/api/seller/products
+X-User-Role: Seller
+X-User-Id: {{sellerId}}
+Content-Type: application/json
+
+{ "name": "Sample Widget", "price": 15.00, "stock": 25 }
+
+### S2: Create product with empty name -> 400
+POST {{host}}/api/seller/products
+X-User-Role: Seller
+X-User-Id: {{sellerId}}
+Content-Type: application/json
+
+{ "name": "", "price": 10.00, "stock": 5 }
+
+### S3: Create product with price = 0 -> 400
+POST {{host}}/api/seller/products
+X-User-Role: Seller
+X-User-Id: {{sellerId}}
+Content-Type: application/json
+
+{ "name": "Free Sample", "price": 0, "stock": 5 }
+
+### S4: Buyer places an order with sufficient stock (Widget) -> 201, Confirmed
+# @name placeOrder
+POST {{host}}/api/buyer/orders
+X-User-Role: Buyer
+X-User-Id: {{buyerId}}
+Content-Type: application/json
+
+{ "productId": "{{listed.response.body.$[2].id}}", "quantity": 2 }
+
+### S5: Buyer places an order with insufficient stock (Doohickey stock=0) -> 422
+POST {{host}}/api/buyer/orders
+X-User-Role: Buyer
+X-User-Id: {{buyerId}}
+Content-Type: application/json
+
+{ "productId": "{{listed.response.body.$[0].id}}", "quantity": 1 }
+
+### S7: Buyer cancels their own order -> 200
+POST {{host}}/api/buyer/orders/{{placeOrder.response.body.$.orderId}}/cancel
+X-User-Role: Buyer
+X-User-Id: {{buyerId}}
+
+### S8: Another buyer tries to cancel the same order (it's already cancelled, but with a different buyer first to demo NotOwner)
+# Place another order so we can demo S8 against an active order:
+# @name secondOrder
+POST {{host}}/api/buyer/orders
+X-User-Role: Buyer
+X-User-Id: {{buyerId}}
+Content-Type: application/json
+
+{ "productId": "{{listed.response.body.$[1].id}}", "quantity": 1 }
+
+### Other buyer attempting to cancel buyer's order -> 403
+POST {{host}}/api/buyer/orders/{{secondOrder.response.body.$.orderId}}/cancel
+X-User-Role: Buyer
+X-User-Id: {{otherBuyerId}}
+
+### S9: Admin force-cancels an order -> 200
+POST {{host}}/api/admin/orders/{{secondOrder.response.body.$.orderId}}/cancel
+X-User-Role: Admin
+X-User-Id: {{adminId}}
+
+### S10: Buyer lists published products (suspended hidden)
+GET {{host}}/api/buyer/products
+X-User-Role: Buyer
+X-User-Id: {{buyerId}}
+
+### S11: Admin lists ALL products (including suspended)
+GET {{host}}/api/admin/products
+X-User-Role: Admin
+X-User-Id: {{adminId}}
+
+### S12: No role headers -> 401
+GET {{host}}/api/buyer/products
+
+### S13: Wrong role for endpoint -> 403
+POST {{host}}/api/seller/products
+X-User-Role: Buyer
+X-User-Id: {{buyerId}}
+Content-Type: application/json
+
+{ "name": "Naughty", "price": 1.00, "stock": 1 }

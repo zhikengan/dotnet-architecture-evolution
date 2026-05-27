@@ -1,0 +1,17 @@
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /src
+
+COPY Directory.Build.props Directory.Packages.props global.json ./
+COPY shared/ shared/
+COPY services/identity-service/ services/identity-service/
+
+WORKDIR /src/services/identity-service
+RUN dotnet restore Identity.sln
+RUN dotnet publish src/Identity.Api/Identity.Api.csproj -c Release -o /app /p:UseAppHost=false
+
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
+WORKDIR /app
+COPY --from=build /app .
+ENV ASPNETCORE_URLS="http://0.0.0.0:8080;http://0.0.0.0:8081"
+EXPOSE 8080 8081
+ENTRYPOINT ["dotnet", "Identity.Api.dll"]

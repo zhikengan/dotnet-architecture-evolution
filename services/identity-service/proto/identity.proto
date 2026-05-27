@@ -1,0 +1,32 @@
+syntax = "proto3";
+
+option csharp_namespace = "Identity.Api.Grpc";
+
+package identity;
+
+service IdentityService {
+  rpc GetUser (GetUserRequest) returns (UserReply);
+  rpc GetTenant (GetTenantRequest) returns (TenantReply);
+}
+
+message GetUserRequest {
+  string user_id = 1;
+}
+
+message UserReply {
+  bool found = 1;
+  string user_id = 2;
+  string tenant_id = 3;
+  string email = 4;
+  string role = 5;
+}
+
+message GetTenantRequest {
+  string tenant_id = 1;
+}
+
+message TenantReply {
+  bool found = 1;
+  string tenant_id = 2;
+  string name = 3;
+}

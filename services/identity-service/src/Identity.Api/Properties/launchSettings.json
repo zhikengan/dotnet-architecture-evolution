@@ -1,0 +1,14 @@
+{
+  "profiles": {
+    "Identity.Api": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "applicationUrl": "http://localhost:5300;http://localhost:5301",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "Kestrel__Endpoints__Http__Url": "http://localhost:5300",
+        "Kestrel__Endpoints__Grpc__Url": "http://localhost:5301"
+      }
+    }
+  }
+}

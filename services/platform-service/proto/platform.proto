@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+option csharp_namespace = "Platform.Api.Grpc";
+
+package platform;
+
+service PlatformService {
+  rpc IsFeatureEnabled (IsFeatureEnabledRequest) returns (IsFeatureEnabledReply);
+}
+
+message IsFeatureEnabledRequest {
+  string tenant_id = 1;
+  string key = 2;
+  string user_id = 3;
+}
+
+message IsFeatureEnabledReply {
+  bool is_enabled = 1;
+}

@@ -5,6 +5,10 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- NU1903: transitive vulnerability flagged on System.Security.Cryptography.Xml.
+         Latest 10.0.0 is still flagged in NuGet's DB; pulled in by Npgsql.
+         Tracked for upstream fix; safe to ignore for this Tier-2 demo. -->
+    <NoWarn>$(NoWarn);NU1903</NoWarn>
     <LangVersion>latest</LangVersion>
     <AnalysisLevel>latest</AnalysisLevel>
     <RootNamespace>$(MSBuildProjectName)</RootNamespace>

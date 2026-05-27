@@ -40,7 +40,7 @@ public sealed class DbFeatureManager(IServiceScopeFactory scopeFactory, IMemoryC
         return flag;
     }
 
-    internal static int ComputeBucket(Guid userId, string flagName)
+    public static int ComputeBucket(Guid userId, string flagName)
     {
         var input = Encoding.UTF8.GetBytes(userId.ToString("N") + ":" + flagName);
         var hash = SHA256.HashData(input);

@@ -3,6 +3,7 @@ using System.Text.Json;
 using BuildingBlocks.Infrastructure.EventBus;
 using BuildingBlocks.Infrastructure.Resilience;
 using BuildingBlocks.Infrastructure.Telemetry;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -10,7 +11,7 @@ using Microsoft.Extensions.Options;
 namespace BuildingBlocks.Infrastructure.Outbox;
 
 public sealed class OutboxProcessor(
-    IEnumerable<IOutboxStore> stores,
+    IServiceScopeFactory scopeFactory,
     IEventBus bus,
     IOptions<OutboxOptions> options,
     ILogger<OutboxProcessor> logger) : BackgroundService
@@ -25,14 +26,16 @@ public sealed class OutboxProcessor(
     {
         var poll = TimeSpan.FromMilliseconds(options.Value.PollIntervalMilliseconds);
         var pipeline = OutboxResiliencePipeline.Build(options.Value.MaxRetries);
-        var storeList = stores.ToList();
-        logger.LogInformation("OutboxProcessor starting; {Count} stores registered", storeList.Count);
+        logger.LogInformation("OutboxProcessor starting; poll={PollMs}ms", options.Value.PollIntervalMilliseconds);
 
         while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
-                foreach (var store in storeList)
+                using var scope = scopeFactory.CreateScope();
+                var stores = scope.ServiceProvider.GetServices<IOutboxStore>().ToList();
+
+                foreach (var store in stores)
                 {
                     var pending = await store.GetPendingAsync(options.Value.BatchSize, stoppingToken);
                     foreach (var msg in pending)

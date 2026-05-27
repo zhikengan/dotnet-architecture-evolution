@@ -1,0 +1,139 @@
+### Tier 3 marketplace demo — modular monolith with async saga + JWT auth
+### Open in VS Code with REST Client and run requests top-to-bottom.
+### The first four requests mint role-specific dev tokens via the
+### Development-only POST /api/dev/token endpoint. Subsequent requests
+### present the JWT as `Authorization: Bearer <jwt>`, flowing through
+### ASP.NET Core's UseAuthentication / UseAuthorization / role policies.
+
+@host = http://localhost:5000
+@sellerId = 11111111-1111-1111-1111-111111111111
+@buyerId  = 22222222-2222-2222-2222-222222222222
+@otherBuyerId = 44444444-4444-4444-4444-444444444444
+@adminId  = 33333333-3333-3333-3333-333333333333
+
+### --- Mint dev tokens (Development-only endpoint) ---
+
+# @name sellerToken
+POST {{host}}/api/dev/token
+Content-Type: application/json
+
+{ "userId": "{{sellerId}}", "role": "Seller" }
+
+# @name buyerToken
+POST {{host}}/api/dev/token
+Content-Type: application/json
+
+{ "userId": "{{buyerId}}", "role": "Buyer" }
+
+# @name otherBuyerToken
+POST {{host}}/api/dev/token
+Content-Type: application/json
+
+{ "userId": "{{otherBuyerId}}", "role": "Buyer" }
+
+# @name adminToken
+POST {{host}}/api/dev/token
+Content-Type: application/json
+
+{ "userId": "{{adminId}}", "role": "Admin" }
+
+### --- Fetch published products ---
+# @name listed
+GET {{host}}/api/buyer/products
+Authorization: Bearer {{buyerToken.response.body.$.access_token}}
+
+### S1: Seller creates a product
+POST {{host}}/api/seller/products
+Authorization: Bearer {{sellerToken.response.body.$.access_token}}
+Content-Type: application/json
+
+{ "name": "Sample Widget", "price": 15.00, "stock": 25 }
+
+### S2: Empty name -> 400
+POST {{host}}/api/seller/products
+Authorization: Bearer {{sellerToken.response.body.$.access_token}}
+Content-Type: application/json
+
+{ "name": "", "price": 10.00, "stock": 5 }
+
+### S3: Zero price -> 400
+POST {{host}}/api/seller/products
+Authorization: Bearer {{sellerToken.response.body.$.access_token}}
+Content-Type: application/json
+
+{ "name": "Free", "price": 0, "stock": 5 }
+
+### S4: Buyer places order (sufficient stock, Widget) -> 201 Pending; saga confirms async
+# @name placeOrder
+POST {{host}}/api/buyer/orders
+Authorization: Bearer {{buyerToken.response.body.$.access_token}}
+Idempotency-Key: demo-place-widget-001
+Content-Type: application/json
+
+{ "productId": "{{listed.response.body.$[2].id}}", "quantity": 2 }
+
+### Wait ~1s then fetch the order — status should be Confirmed
+GET {{host}}/api/buyer/orders/{{placeOrder.response.body.$.orderId}}
+Authorization: Bearer {{buyerToken.response.body.$.access_token}}
+
+### S5: Insufficient stock (Doohickey stock=0) -> 201 Pending; saga marks Failed
+POST {{host}}/api/buyer/orders
+Authorization: Bearer {{buyerToken.response.body.$.access_token}}
+Content-Type: application/json
+
+{ "productId": "{{listed.response.body.$[0].id}}", "quantity": 1 }
+
+### S7: Cancel own order
+POST {{host}}/api/buyer/orders/{{placeOrder.response.body.$.orderId}}/cancel
+Authorization: Bearer {{buyerToken.response.body.$.access_token}}
+
+### Place another order for S8 / S9
+# @name secondOrder
+POST {{host}}/api/buyer/orders
+Authorization: Bearer {{buyerToken.response.body.$.access_token}}
+Content-Type: application/json
+
+{ "productId": "{{listed.response.body.$[1].id}}", "quantity": 1 }
+
+### S8: Other buyer cancels -> 403
+POST {{host}}/api/buyer/orders/{{secondOrder.response.body.$.orderId}}/cancel
+Authorization: Bearer {{otherBuyerToken.response.body.$.access_token}}
+
+### S9: Admin force-cancels
+POST {{host}}/api/admin/orders/{{secondOrder.response.body.$.orderId}}/cancel
+Authorization: Bearer {{adminToken.response.body.$.access_token}}
+
+### S10: Buyer list (suspended hidden)
+GET {{host}}/api/buyer/products
+Authorization: Bearer {{buyerToken.response.body.$.access_token}}
+
+### S11: Admin list includes everything
+GET {{host}}/api/admin/products
+Authorization: Bearer {{adminToken.response.body.$.access_token}}
+
+### S12: No Authorization header -> 401
+GET {{host}}/api/buyer/products
+
+### S13: Wrong role -> 403 (Buyer token at a Seller endpoint)
+POST {{host}}/api/seller/products
+Authorization: Bearer {{buyerToken.response.body.$.access_token}}
+Content-Type: application/json
+
+{ "name": "Naughty", "price": 1.00, "stock": 1 }
+
+### --- Feature flags demo ---
+
+### List flags
+GET {{host}}/api/admin/feature-flags
+Authorization: Bearer {{adminToken.response.body.$.access_token}}
+
+### Set EnablePremiumBadge rollout to 100%
+PUT {{host}}/api/admin/feature-flags/EnablePremiumBadge/rollout
+Authorization: Bearer {{adminToken.response.body.$.access_token}}
+Content-Type: application/json
+
+{ "percentage": 100 }
+
+### After cache TTL (~30s), buyer list shows isPremium: true
+GET {{host}}/api/buyer/products
+Authorization: Bearer {{buyerToken.response.body.$.access_token}}

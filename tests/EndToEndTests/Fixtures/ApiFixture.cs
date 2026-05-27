@@ -46,10 +46,12 @@ public sealed class ApiFixture : WebApplicationFactory<Program>, IAsyncLifetime
                 ["ConnectionStrings:Marketplace"] = _container.GetConnectionString(),
                 ["FeatureFlags:CacheSeconds"] = "1",
                 ["Outbox:PollIntervalMilliseconds"] = "200",
-                ["Jwt:Key"] = "marketplace-e2e-tests-symmetric-key-32+chars-min!!",
                 ["Jwt:Issuer"] = "marketplace",
                 ["Jwt:Audience"] = "marketplace-clients",
                 ["Jwt:LifetimeMinutes"] = "60",
+                ["Jwt:KeyId"] = TestKeys.KeyId,
+                ["Jwt:PrivateKeyPem"] = TestKeys.PrivateKeyPem,
+                ["Jwt:PublicKeyPem"] = TestKeys.PublicKeyPem,
             });
         });
     }

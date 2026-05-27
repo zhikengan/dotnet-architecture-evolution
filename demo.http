@@ -1,46 +1,49 @@
-### Tier 3 marketplace demo — modular monolith with async saga + JWT auth
+### Tier 4 marketplace demo — modular monolith + multi-tenancy + RS256 JWT
 ### Open in VS Code with REST Client and run requests top-to-bottom.
-### The first four requests mint role-specific dev tokens via the
-### Development-only POST /api/dev/token endpoint. Subsequent requests
-### present the JWT as `Authorization: Bearer <jwt>`, flowing through
-### ASP.NET Core's UseAuthentication / UseAuthorization / role policies.
+### The first four requests mint role-specific tokens via the Development-only
+### /demo/token issuer. Subsequent requests present the JWT as
+### `Authorization: Bearer <jwt>`, flowing through ASP.NET Core's
+### UseAuthentication / UseAuthorization / role policies / tenant filter.
 
 @host = http://localhost:5000
+@tenant = acme
+@globexTenant = globex
 @sellerId = 11111111-1111-1111-1111-111111111111
 @buyerId  = 22222222-2222-2222-2222-222222222222
 @otherBuyerId = 44444444-4444-4444-4444-444444444444
 @adminId  = 33333333-3333-3333-3333-333333333333
 
-### --- Mint dev tokens (Development-only endpoint) ---
+### --- OIDC discovery (always available; publishes the public key) ---
+GET {{host}}/.well-known/openid-configuration
+
+###
+GET {{host}}/.well-known/jwks.json
+
+### --- Mint demo tokens (Development-only issuer; RS256) ---
 
 # @name sellerToken
-POST {{host}}/api/dev/token
-Content-Type: application/json
-
-{ "userId": "{{sellerId}}", "role": "Seller" }
+GET {{host}}/demo/token?role=Seller&tenant={{tenant}}&userId={{sellerId}}
 
 # @name buyerToken
-POST {{host}}/api/dev/token
-Content-Type: application/json
-
-{ "userId": "{{buyerId}}", "role": "Buyer" }
+GET {{host}}/demo/token?role=Buyer&tenant={{tenant}}&userId={{buyerId}}
 
 # @name otherBuyerToken
-POST {{host}}/api/dev/token
-Content-Type: application/json
-
-{ "userId": "{{otherBuyerId}}", "role": "Buyer" }
+GET {{host}}/demo/token?role=Buyer&tenant={{tenant}}&userId={{otherBuyerId}}
 
 # @name adminToken
-POST {{host}}/api/dev/token
-Content-Type: application/json
+GET {{host}}/demo/token?role=Admin&tenant={{tenant}}&userId={{adminId}}
 
-{ "userId": "{{adminId}}", "role": "Admin" }
+# @name globexBuyerToken
+GET {{host}}/demo/token?role=Buyer&tenant={{globexTenant}}&userId={{buyerId}}
 
-### --- Fetch published products ---
+### --- Fetch published products (Acme tenant) ---
 # @name listed
 GET {{host}}/api/buyer/products
 Authorization: Bearer {{buyerToken.response.body.$.access_token}}
+
+### Globex buyer sees only Globex catalog (multi-tenancy demo)
+GET {{host}}/api/buyer/products
+Authorization: Bearer {{globexBuyerToken.response.body.$.access_token}}
 
 ### S1: Seller creates a product
 POST {{host}}/api/seller/products
@@ -121,7 +124,7 @@ Content-Type: application/json
 
 { "name": "Naughty", "price": 1.00, "stock": 1 }
 
-### --- Feature flags demo ---
+### --- Feature flags demo (Acme tenant) ---
 
 ### List flags
 GET {{host}}/api/admin/feature-flags

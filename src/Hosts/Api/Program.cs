@@ -9,7 +9,7 @@ using Catalog;
 using Catalog.Infrastructure.Persistence;
 using Marketplace.Api.Authentication;
 using Marketplace.Api.Endpoints;
-using Marketplace.Api.Endpoints.Dev;
+using Marketplace.Api.Endpoints.Demo;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Orders;
@@ -92,14 +92,19 @@ if (app.Environment.IsDevelopment())
     await PlatformDataSeeder.SeedAsync(platformDb);
     await CatalogDataSeeder.SeedAsync(catalogDb);
 
-    // Dev-only token mint — registered ONLY in Development so the unauth
-    // mint path can't ship to production.
-    app.MapDevTokenEndpoints();
+    // Demo token issuer — Development ONLY. There's no login or password;
+    // the caller asserts (role, tenant, userId) and gets a real RS256 JWT
+    // signed by the issuer the JwtBearer middleware validates against.
+    app.MapDemoTokenEndpoint();
 }
 
-app.MapGet("/", () => "Marketplace API — Tier 3 (modular monolith)");
+app.MapGet("/", () => "Marketplace API — Tier 4 (platform)");
 app.MapGet("/health/live", () => Results.Ok("live"));
 app.MapGet("/health/ready", () => Results.Ok("ready"));
+
+// OIDC-style discovery endpoints — always mounted; safe to expose because
+// they publish ONLY the public key, never the signing material.
+app.MapDiscoveryEndpoints();
 
 app.MapBuyerEndpoints();
 app.MapSellerEndpoints();

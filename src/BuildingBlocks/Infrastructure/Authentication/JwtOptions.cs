@@ -3,16 +3,29 @@ using System.ComponentModel.DataAnnotations;
 namespace BuildingBlocks.Infrastructure.Authentication;
 
 /// <summary>
-/// Symmetric-key JWT configuration shared across the host and any future hosts
-/// that share <c>BuildingBlocks</c>. HS256 is dev-grade; Tier 4 graduates to
-/// RS256 + a real issuer.
+/// RS256 (asymmetric) JWT configuration. The private key signs tokens at the
+/// API host's demo issuer; the public key is what any future relying party
+/// (Worker host, external SDK) uses to validate without ever holding the
+/// signing material. PEM-encoded RSA keys are read directly from config —
+/// in dev they sit in <c>appsettings.Development.json</c>; in prod they
+/// would come from a secret store and rotate via <c>KeyId</c>.
 /// </summary>
 public sealed class JwtOptions
 {
     public const string SectionName = "Jwt";
 
-    [Required, MinLength(32)]
-    public string Key { get; init; } = string.Empty;
+    [Required]
+    public string PrivateKeyPem { get; init; } = string.Empty;
+
+    [Required]
+    public string PublicKeyPem { get; init; } = string.Empty;
+
+    /// <summary>
+    /// JWS <c>kid</c> header value. Surfaced via the JWKS discovery endpoint
+    /// so clients can pin the rotation epoch.
+    /// </summary>
+    [Required]
+    public string KeyId { get; init; } = string.Empty;
 
     [Required]
     public string Issuer { get; init; } = "marketplace";

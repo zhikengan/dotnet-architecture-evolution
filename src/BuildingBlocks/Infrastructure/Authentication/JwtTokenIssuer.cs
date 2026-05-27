@@ -1,5 +1,5 @@
 using System.Security.Claims;
-using System.Text;
+using System.Security.Cryptography;
 using BuildingBlocks.Application;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.JsonWebTokens;
@@ -8,22 +8,32 @@ using Microsoft.IdentityModel.Tokens;
 namespace BuildingBlocks.Infrastructure.Authentication;
 
 /// <summary>
-/// Signs JWTs for the configured issuer/audience. Tier 4 still ships HS256
-/// at the multi-tenancy commit; the RS256 upgrade lands in the dedicated JWT
-/// commit later in this tier. Lives in <c>BuildingBlocks.Infrastructure</c>
-/// so any host can resolve it.
+/// Signs RS256 JWTs against the configured RSA private key. The matching
+/// public key is published via the host's JWKS discovery endpoint. Issuer
+/// state is intentionally singleton-scoped — the RSA key materializes once
+/// at host startup and is reused.
 /// </summary>
-public sealed class JwtTokenIssuer(IOptions<JwtOptions> options, IClock clock)
+public sealed class JwtTokenIssuer : IDisposable
 {
-    private readonly JwtOptions _opts = options.Value;
+    private readonly JwtOptions _opts;
+    private readonly IClock _clock;
+    private readonly RSA _privateKey;
+    private readonly SigningCredentials _signingCredentials;
+
+    public JwtTokenIssuer(IOptions<JwtOptions> options, IClock clock)
+    {
+        _opts = options.Value;
+        _clock = clock;
+        _privateKey = RSA.Create();
+        _privateKey.ImportFromPem(_opts.PrivateKeyPem);
+        var key = new RsaSecurityKey(_privateKey) { KeyId = _opts.KeyId };
+        _signingCredentials = new SigningCredentials(key, SecurityAlgorithms.RsaSha256);
+    }
 
     public (string Token, DateTime ExpiresAt) Mint(Guid userId, string role, Guid tenantId)
     {
-        var now = clock.UtcNow;
+        var now = _clock.UtcNow;
         var expires = now.AddMinutes(_opts.LifetimeMinutes);
-
-        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_opts.Key));
-        var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
         var descriptor = new SecurityTokenDescriptor
         {
@@ -32,7 +42,7 @@ public sealed class JwtTokenIssuer(IOptions<JwtOptions> options, IClock clock)
             IssuedAt = now,
             NotBefore = now,
             Expires = expires,
-            SigningCredentials = creds,
+            SigningCredentials = _signingCredentials,
             Subject = new ClaimsIdentity(
             [
                 new Claim(JwtRegisteredClaimNames.Sub, userId.ToString()),
@@ -47,4 +57,6 @@ public sealed class JwtTokenIssuer(IOptions<JwtOptions> options, IClock clock)
         var handler = new JsonWebTokenHandler();
         return (handler.CreateToken(descriptor), expires);
     }
+
+    public void Dispose() => _privateKey.Dispose();
 }

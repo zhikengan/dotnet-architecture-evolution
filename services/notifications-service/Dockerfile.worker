@@ -1,0 +1,13 @@
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /src
+COPY Directory.Build.props Directory.Packages.props global.json ./
+COPY shared/ shared/
+COPY services/notifications-service/ services/notifications-service/
+WORKDIR /src/services/notifications-service
+RUN dotnet restore Notifications.sln
+RUN dotnet publish src/Notifications.Worker/Notifications.Worker.csproj -c Release -o /app /p:UseAppHost=false
+
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
+WORKDIR /app
+COPY --from=build /app .
+ENTRYPOINT ["dotnet", "Notifications.Worker.dll"]

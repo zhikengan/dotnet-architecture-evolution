@@ -134,7 +134,9 @@ public static class EndpointMappings
     }
 
     private static IResult? CheckRole(HttpContext ctx, string requiredRole) =>
-        ctx.Request.Headers["X-User-Role"].ToString() == requiredRole ? null : Results.Forbid();
+        ctx.Request.Headers["X-User-Role"].ToString() == requiredRole
+            ? null
+            : Results.StatusCode(StatusCodes.Status403Forbidden);
 }
 
 public record CreateProductRequest(string Name, decimal Price, int Stock);

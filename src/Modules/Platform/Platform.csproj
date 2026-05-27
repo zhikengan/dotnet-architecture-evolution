@@ -7,6 +7,8 @@
   <ItemGroup>
     <ProjectReference Include="..\..\BuildingBlocks\BuildingBlocks.csproj" />
     <ProjectReference Include="..\..\Contracts\Platform.Contracts\Platform.Contracts.csproj" />
+    <!-- Platform listens to Orders integration events (OrderConfirmed) — references the Contracts only. -->
+    <ProjectReference Include="..\..\Contracts\Orders.Contracts\Orders.Contracts.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -22,6 +24,10 @@
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
     <PackageReference Include="Microsoft.Extensions.Options" />
     <PackageReference Include="Microsoft.Extensions.Caching.Memory" />
+    <!-- Hangfire client + storage. Worker host adds the server on top. -->
+    <PackageReference Include="Hangfire.Core" />
+    <PackageReference Include="Hangfire.AspNetCore" />
+    <PackageReference Include="Hangfire.PostgreSql" />
   </ItemGroup>
 
 </Project>

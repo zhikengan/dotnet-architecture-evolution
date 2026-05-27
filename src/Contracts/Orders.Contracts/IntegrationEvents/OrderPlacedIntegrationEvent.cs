@@ -19,3 +19,10 @@ public sealed record OrderCancelledIntegrationEvent(
     Guid ProductId,
     int Quantity,
     bool StockWasDecremented) : IIntegrationEvent;
+
+public sealed record OrderConfirmedIntegrationEvent(
+    Guid MessageId,
+    DateTime OccurredAt,
+    Guid TenantId,
+    Guid OrderId,
+    Guid BuyerId) : IIntegrationEvent;

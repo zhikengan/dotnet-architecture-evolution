@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Platform.Application.Abstractions;
 using Platform.Domain.FeatureFlags;
+using Platform.Domain.Emails;
 using Platform.Domain.IdempotencyKeys;
 using Platform.Domain.Reporting;
 using Platform.Domain.Tenants;
@@ -19,6 +20,7 @@ public sealed class PlatformDbContext(DbContextOptions<PlatformDbContext> option
     public DbSet<IdempotencyKey> IdempotencyKeys => Set<IdempotencyKey>();
     public DbSet<Tenant> Tenants => Set<Tenant>();
     public DbSet<DailyReport> DailyReports => Set<DailyReport>();
+    public DbSet<SentEmail> SentEmails => Set<SentEmail>();
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {

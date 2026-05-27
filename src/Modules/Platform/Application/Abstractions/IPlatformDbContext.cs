@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Platform.Domain.FeatureFlags;
+using Platform.Domain.Emails;
 using Platform.Domain.IdempotencyKeys;
 using Platform.Domain.Reporting;
 using Platform.Domain.Tenants;
@@ -12,5 +13,6 @@ public interface IPlatformDbContext
     DbSet<IdempotencyKey> IdempotencyKeys { get; }
     DbSet<Tenant> Tenants { get; }
     DbSet<DailyReport> DailyReports { get; }
+    DbSet<SentEmail> SentEmails { get; }
     Task<int> SaveChangesAsync(CancellationToken ct = default);
 }

@@ -51,6 +51,10 @@ builder.Services.AddHostedService<OutboxProcessor>();
 // Quartz — deterministic schedules (cron-style) live in the Worker.
 builder.Services.AddMarketplaceQuartz(builder.Environment);
 
+// Hangfire server + dashboard. The client + storage are wired by PlatformModule
+// so both API and Worker can enqueue against the same backing store.
+builder.Services.AddMarketplaceHangfireServer();
+
 // OpenTelemetry — same exports as the API host so traces span both processes.
 builder.Services.AddOpenTelemetry()
     .ConfigureResource(r => r.AddService(builder.Configuration["OTEL_SERVICE_NAME"] ?? "marketplace-worker"))
@@ -71,6 +75,9 @@ app.UseSerilogRequestLogging();
 
 // Minimal liveness endpoint. The Worker does NOT mount any business routes.
 app.MapGet("/health", () => Results.Ok(new { status = "up" }));
+
+// Hangfire dashboard at /hangfire — the only HTTP UI the Worker exposes.
+app.UseMarketplaceHangfireDashboard();
 
 await app.RunAsync();
 

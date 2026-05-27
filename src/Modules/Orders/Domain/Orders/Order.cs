@@ -42,7 +42,7 @@ public sealed class Order : AggregateRoot<OrderId>, IMultiTenant
     {
         if (Status != OrderStatus.Pending) return Result.Failure(OrderErrors.NotPending);
         Status = OrderStatus.Confirmed;
-        RaiseDomainEvent(new OrderConfirmed(Id, TenantId));
+        RaiseDomainEvent(new OrderConfirmed(Id, TenantId, BuyerId));
         return Result.Success();
     }
 

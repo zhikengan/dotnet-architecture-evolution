@@ -17,6 +17,16 @@ public sealed class PublishOrderPlacedHandler(IOrdersDbContext db, IClock clock)
     }
 }
 
+public sealed class PublishOrderConfirmedHandler(IOrdersDbContext db, IClock clock) : INotificationHandler<OrderConfirmed>
+{
+    public Task Handle(OrderConfirmed e, CancellationToken ct)
+    {
+        db.OutboxMessages.Enqueue(new OrderConfirmedIntegrationEvent(
+            Guid.NewGuid(), clock.UtcNow, e.TenantId, e.OrderId.Value, e.BuyerId));
+        return Task.CompletedTask;
+    }
+}
+
 public sealed class PublishOrderCancelledHandler(IOrdersDbContext db, IClock clock) : INotificationHandler<OrderCancelled>
 {
     public Task Handle(OrderCancelled e, CancellationToken ct)

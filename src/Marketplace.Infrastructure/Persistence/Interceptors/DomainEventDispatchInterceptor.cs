@@ -28,7 +28,10 @@ public sealed class DomainEventDispatchInterceptor(IPublisher publisher) : SaveC
 
         foreach (var evt in events)
         {
-            await publisher.Publish(evt, ct);
+            // Cast to object so the dynamic-dispatch overload of IPublisher.Publish
+            // routes to concrete INotificationHandler<TEvent> handlers based on
+            // runtime type, not the IDomainEvent compile-time type.
+            await publisher.Publish((object)evt, ct);
         }
 
         return result;

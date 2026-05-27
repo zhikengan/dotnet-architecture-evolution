@@ -1,3 +1,5 @@
+using BuildingBlocks.Domain;
+using BuildingBlocks.Domain.MultiTenancy;
 using NetArchTest.Rules;
 
 namespace ArchitectureTests;
@@ -119,6 +121,37 @@ public class ModuleBoundaryTests
                 .GetResult();
             AssertSuccess(result);
         }
+    }
+
+    [Fact]
+    public void All_aggregate_roots_must_implement_IMultiTenant()
+    {
+        // Walks each module assembly looking for AggregateRoot<T> descendants
+        // and asserts they implement IMultiTenant. This is the enforcement
+        // point for the "no aggregate forgets its tenant" guarantee — the
+        // EF query filters in each DbContext rely on it.
+        foreach (var asm in new[] { CatalogAssembly, OrdersAssembly, PlatformAssembly })
+        {
+            var aggregates = asm.GetTypes().Where(IsAggregateRoot).ToList();
+            var missing = aggregates
+                .Where(t => !typeof(IMultiTenant).IsAssignableFrom(t))
+                .Select(t => t.FullName!)
+                .ToList();
+            missing.Should().BeEmpty(
+                $"{asm.GetName().Name}: every AggregateRoot<T> must implement IMultiTenant. Missing: {string.Join(", ", missing)}");
+        }
+    }
+
+    private static bool IsAggregateRoot(Type t)
+    {
+        var b = t.BaseType;
+        while (b is not null)
+        {
+            if (b.IsGenericType && b.GetGenericTypeDefinition() == typeof(AggregateRoot<>))
+                return true;
+            b = b.BaseType;
+        }
+        return false;
     }
 
     private static void AssertSuccess(TestResult r)

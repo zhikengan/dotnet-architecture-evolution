@@ -124,6 +124,23 @@ public class ModuleBoundaryTests
     }
 
     [Fact]
+    public void Worker_host_must_not_depend_on_AspNetCore_Mvc()
+    {
+        // The Worker is a WebApplication only because Hangfire's dashboard
+        // requires HTTP routing. It must NOT pull in MVC / controllers /
+        // endpoint binding — the dashboard renders via its own middleware.
+        // Catching MVC drift here keeps the API/Worker boundary honest.
+        var workerAssembly = typeof(global::Marketplace.Worker.Configuration.HangfireConfiguration).Assembly;
+        var result = Types.InAssembly(workerAssembly)
+            .Should().NotHaveDependencyOnAny(
+                "Microsoft.AspNetCore.Mvc.Core",
+                "Microsoft.AspNetCore.Mvc.ViewFeatures",
+                "Microsoft.AspNetCore.Mvc.RazorPages")
+            .GetResult();
+        AssertSuccess(result);
+    }
+
+    [Fact]
     public void All_aggregate_roots_must_implement_IMultiTenant()
     {
         // Walks each module assembly looking for AggregateRoot<T> descendants

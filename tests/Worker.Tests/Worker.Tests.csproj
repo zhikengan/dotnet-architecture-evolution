@@ -11,16 +11,15 @@
     <PackageReference Include="xunit.runner.visualstudio" />
     <PackageReference Include="coverlet.collector" />
     <PackageReference Include="FluentAssertions" />
-    <PackageReference Include="NetArchTest.Rules" />
+    <PackageReference Include="Testcontainers.PostgreSql" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\BuildingBlocks\BuildingBlocks.csproj" />
+    <ProjectReference Include="..\..\src\Hosts\Worker\Worker.csproj" />
     <ProjectReference Include="..\..\src\Modules\Catalog\Catalog.csproj" />
     <ProjectReference Include="..\..\src\Modules\Orders\Orders.csproj" />
     <ProjectReference Include="..\..\src\Modules\Platform\Platform.csproj" />
-    <ProjectReference Include="..\..\src\Hosts\Api\Api.csproj" />
-    <ProjectReference Include="..\..\src\Hosts\Worker\Worker.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -1,5 +1,6 @@
 using BuildingBlocks.Application;
 using BuildingBlocks.Infrastructure.Outbox;
+using BuildingBlocks.Infrastructure.Telemetry;
 using MediatR;
 using Orders.Application.Abstractions;
 using Orders.Contracts.IntegrationEvents;
@@ -33,6 +34,9 @@ public sealed class PublishOrderCancelledHandler(IOrdersDbContext db, IClock clo
     {
         db.OutboxMessages.Enqueue(new OrderCancelledIntegrationEvent(
             Guid.NewGuid(), clock.UtcNow, e.TenantId, e.OrderId.Value, e.ProductId, e.Quantity, e.StockWasDecremented));
+        MarketplaceMeter.OrdersCancelled.Add(1,
+            new KeyValuePair<string, object?>("tenant_id", e.TenantId),
+            new KeyValuePair<string, object?>("reason", e.StockWasDecremented ? "with_stock_return" : "no_stock_return"));
         return Task.CompletedTask;
     }
 }

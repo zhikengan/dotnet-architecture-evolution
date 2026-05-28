@@ -65,6 +65,7 @@ builder.Services.AddOpenTelemetry()
         .AddOtlpExporter())
     .WithMetrics(m => m
         .AddMeter(MarketplaceActivitySource.Name)
+        .AddMeter(MarketplaceMeter.Name)
         .AddAspNetCoreInstrumentation()
         .AddRuntimeInstrumentation()
         .AddOtlpExporter());

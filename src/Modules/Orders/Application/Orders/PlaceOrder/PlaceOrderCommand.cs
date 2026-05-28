@@ -2,6 +2,7 @@ using BuildingBlocks.Application;
 using BuildingBlocks.Application.Behaviors;
 using BuildingBlocks.Application.MultiTenancy;
 using BuildingBlocks.Domain;
+using BuildingBlocks.Infrastructure.Telemetry;
 using FluentValidation;
 using MediatR;
 using Orders.Application.Abstractions;
@@ -40,6 +41,7 @@ public sealed class PlaceOrderHandler(IOrdersDbContext db, IClock clock, ITenant
 
         db.Orders.Add(order.Value);
         await db.SaveChangesAsync(ct);
+        MarketplaceMeter.OrdersPlaced.Add(1, new KeyValuePair<string, object?>("tenant_id", tenant.TenantId));
         return Result.Success(new PlaceOrderResult(order.Value.Id.Value, order.Value.Status.ToString()));
     }
 }

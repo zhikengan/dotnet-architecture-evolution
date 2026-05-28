@@ -1,4 +1,3 @@
-using System.Diagnostics.Metrics;
 using System.Text.Json;
 using BuildingBlocks.Infrastructure.EventBus;
 using BuildingBlocks.Infrastructure.Resilience;
@@ -16,11 +15,6 @@ public sealed class OutboxProcessor(
     IOptions<OutboxOptions> options,
     ILogger<OutboxProcessor> logger) : BackgroundService
 {
-    private static readonly Meter Meter = new(MarketplaceActivitySource.Name);
-    private static readonly Counter<long> Processed = Meter.CreateCounter<long>(
-        "outbox_messages_processed_total", "messages", "Outbox messages processed");
-    private static readonly Counter<long> Failed = Meter.CreateCounter<long>(
-        "outbox_messages_failed_total", "messages", "Outbox messages that failed dispatch");
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -50,12 +44,22 @@ public sealed class OutboxProcessor(
                             }, stoppingToken);
 
                             await store.MarkProcessedAsync(msg.Id, stoppingToken);
-                            Processed.Add(1, new KeyValuePair<string, object?>("module", store.ModuleName));
+                            MarketplaceMeter.OutboxProcessed.Add(1,
+                                new KeyValuePair<string, object?>("module", store.ModuleName),
+                                new KeyValuePair<string, object?>("outcome", "success"));
+                            // Lag = (now - OccurredAt). Surfaces "how long did
+                            // this message sit before we dispatched it?" — a
+                            // sentinel value for outbox-stuck alerts.
+                            MarketplaceMeter.OutboxLagSeconds.Record(
+                                (DateTime.UtcNow - msg.OccurredAt).TotalSeconds,
+                                new KeyValuePair<string, object?>("module", store.ModuleName));
                         }
                         catch (Exception ex)
                         {
                             await store.MarkFailedAsync(msg.Id, ex.ToString(), stoppingToken);
-                            Failed.Add(1, new KeyValuePair<string, object?>("module", store.ModuleName));
+                            MarketplaceMeter.OutboxProcessed.Add(1,
+                                new KeyValuePair<string, object?>("module", store.ModuleName),
+                                new KeyValuePair<string, object?>("outcome", "failed"));
                             logger.LogError(ex,
                                 "Outbox dispatch failed for message {MessageId} (module={Module}, type={Type})",
                                 msg.Id, store.ModuleName, msg.Type);

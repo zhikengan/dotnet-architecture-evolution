@@ -1,5 +1,6 @@
 using BuildingBlocks.Application;
 using BuildingBlocks.Infrastructure.Outbox;
+using BuildingBlocks.Infrastructure.Telemetry;
 using Catalog.Application.Abstractions;
 using Catalog.Contracts.IntegrationEvents;
 using Catalog.Domain.Products.Events;
@@ -23,6 +24,7 @@ public sealed class PublishStockDecrementedHandler(ICatalogDbContext db, IClock 
     {
         db.OutboxMessages.Enqueue(new StockDecrementedIntegrationEvent(
             Guid.NewGuid(), clock.UtcNow, e.TenantId, e.OrderId, e.ProductId.Value, e.Quantity));
+        MarketplaceMeter.StockDecrements.Add(1, new KeyValuePair<string, object?>("tenant_id", e.TenantId));
         return Task.CompletedTask;
     }
 }

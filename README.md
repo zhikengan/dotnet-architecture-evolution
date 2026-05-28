@@ -57,6 +57,10 @@ The same marketplace as Tiers 1-4 — same business rules, same 13 scenarios fro
 
 Client receives `Pending` immediately, then polls `GET /orders/{id}` to see `Confirmed` (typically <5s).
 
+## Deep dive
+
+For diagrams, the saga walkthrough hop-by-hop, the test pyramid, the develop-a-single-service-in-isolation recipe, and the link map to the ADRs, see [`docs/architecture.md`](docs/architecture.md).
+
 ## Architecture choices
 
 - **Per service: Domain / Application / Infrastructure / Api / Worker** — same Clean Architecture split as Tier 4's modular monolith, just physically separated. The Domain and Application layers are identical in shape (sealed-class aggregates, MediatR `IRequest<Result<T>>` handlers, `IAuthorizationRequirement`, `When{Event}_{Action}` consumers in `EventHandlers/Integration/`).

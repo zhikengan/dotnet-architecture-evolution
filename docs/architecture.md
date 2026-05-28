@@ -87,3 +87,72 @@ OTLP exporter ships to Jaeger at `Otel:Endpoint` (default `http://jaeger:4317` i
 | Service → its own Domain/Application/Infrastructure | ❌ Service → another service's main projects |
 | Service → `*.Contracts` of any other service | ❌ Cross-service FK in the DB |
 | Service → `BuildingBlocks` | ❌ Shared DbContext / schema |
+
+## The PlaceOrder saga, hop by hop
+
+```
+buyer-bff ──HTTP──▶ orders-api
+                       │ Order.Create() → Pending
+                       │ SaveChangesAsync (atomic with bus outbox row)
+                       │
+                       │ OrderPlacedIntegrationEvent ── RabbitMQ ──▶ catalog-worker
+                       │                                                  │ Product.Decrement
+                       │                                                  │ SaveChangesAsync
+                       │                                                  │
+                       │     ◀── RabbitMQ ── StockDecrementedIntegrationEvent
+                       │
+                       │ Order.Confirm() → Confirmed
+                       │ SaveChangesAsync
+                       │
+                       │ OrderConfirmedIntegrationEvent ── RabbitMQ ──▶ notifications-worker
+                                                                              │ Notification.Create
+                                                                              │ SaveChangesAsync
+```
+
+Failure paths:
+- catalog stock decrement fails → `StockDecrementFailedIntegrationEvent` → orders flips to `Failed` → `OrderFailedIntegrationEvent` → notifications.
+- Buyer cancels → orders publishes `OrderCancelledIntegrationEvent` with `StockWasDecremented` computed from pre-cancel order status. Catalog only returns stock when the flag is `true`.
+
+## Tests
+
+| Level | Where | What |
+|---|---|---|
+| Per-service unit | `services/{name}-service/tests/{Name}.UnitTests/` | Domain invariants + per-service architecture facts (Domain ⊥ EF / MassTransit) |
+| Per-service integration | `services/{name}-service/tests/{Name}.IntegrationTests/` | EF round-trip against a Postgres Testcontainer |
+| Per-service contract | `services/{name}-service/tests/{Name}.ContractTests/` | Consumer-driven pacts — JSON pinned per consumed event |
+| Repo architecture | `tests/architecture/RepoArchitectureTests/` | No cross-service main project refs; BFFs ⊥ service impl; every aggregate root implements `IMultiTenant` (except `Identity.Tenant` itself) |
+| Cross-service E2E | `tests/e2e/E2E/` | Full saga + key SHARED_SCOPE scenarios against a running compose stack |
+
+Per-service tests run on every PR via the matching `.github/workflows/{service}-ci.yml`. The `e2e.yml` workflow brings the full compose stack up before running the e2e suite. Locally, e2e tests soft-skip with a clear message if `docker compose up -d --build --wait` hasn't been run.
+
+## Develop a single service in isolation
+
+You don't need the full 18-container stack to work on one service. Recipe:
+
+```bash
+# 1. Bring up just the infra dependencies you need:
+docker compose -f deploy/docker-compose.yml up -d \
+  rabbitmq jaeger identity-db identity-api catalog-db
+
+# 2. Run the service of interest directly:
+cd services/catalog-service/src/Catalog.Api
+dotnet run
+
+# 3. Exercise it via the per-service .http file (VS Code REST Client):
+#    open services/catalog-service/catalog-service.http
+```
+
+Each service ships its own `{service}-service.http` that mints a token from identity-service and calls the service directly (bypassing BFFs). Useful for low-level debugging.
+
+For full-stack work, the repo-root `demo.http` walks the saga end-to-end through the BFFs — the way a real client would. The corresponding Jaeger trace is the showcase: one click reveals the full request graph spanning HTTP → orders-api → RabbitMQ → catalog-worker → RabbitMQ → orders-worker → RabbitMQ → notifications-worker.
+
+## ADRs
+
+See `docs/adr/` for the per-decision rationale:
+
+- `0012` — microservices decomposition
+- `0013` — RabbitMQ for events
+- `0014` — gRPC for sync calls only
+- `0015` — API gateway per audience (YARP)
+- `0016` — database per service
+- `0017` — consumer-driven contracts

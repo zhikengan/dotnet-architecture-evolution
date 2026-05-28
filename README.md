@@ -1,74 +1,57 @@
-# Marketplace — Tier 3 (Modular Monolith)
+# Marketplace — Tier 4 (Platform)
 
-The architecture a 3–10-dev product team should ship once Tier 2 starts to creak: features take longer, modules collide, debugging a bug in one area requires understanding five. The single bounded context splits into three modules — **Catalog**, **Orders**, **Platform** — communicating through **integration events on an outbox/inbox pattern**. Modules never reference each other's impl projects, only each other's `*.Contracts` assemblies. The build refuses to compile a shortcut.
+Tier 4 takes the Tier 3 modular monolith and adds the operational patterns of a serious production system: extracted Worker host, multi-tenancy with EF query filters, RS256 JWT with a demo issuer, S3-compatible storage via MinIO, Quartz for scheduled jobs, Hangfire for fire-and-forget background work, built-in rate limiting, custom OpenTelemetry metrics, expanded health checks. The architecture stays a modular monolith — Tier 5 distributes the modules.
 
 > Looking for the big picture? Check out [`main`](../../tree/main) for the cross-tier showcase.
 
-## Stack
+## Stack (additions over Tier 3)
 
-- .NET 10 / C# 14, file-scoped namespaces, nullable enabled, warnings as errors
-- ASP.NET Core Minimal APIs
-- EF Core 10 + PostgreSQL 17 (one DbContext per module, separate schemas)
-- MediatR 13 + FluentValidation 12 + pipeline behaviors per module
-- Polly v8 resilience pipeline for outbox dispatch
-- Serilog 9 + OpenTelemetry 1.10 (OTLP → Jaeger)
-- xUnit + FluentAssertions + NetArchTest for module-boundary enforcement
-- Docker Compose: postgres + jaeger + app
+- All of Tier 3 (.NET 10 / C# 14, EF Core 10 + PostgreSQL 17, MediatR 13, OpenTelemetry, modular monolith)
+- **Multi-tenancy** via `IMultiTenant` + EF global query filters
+- **JWT RS256** with PEM-encoded keypair + OIDC-shaped discovery (`/.well-known/openid-configuration` + `jwks.json`)
+- **MinIO** (S3-compatible) for product images via presigned URLs
+- **Quartz.NET 3** for cron-style scheduled jobs
+- **Hangfire 1.8** + Postgres storage for fire-and-forget jobs (dashboard at `/hangfire`)
+- **Rate limiting** (.NET built-in) per-user partitioning
+- **Security headers** (CSP, HSTS, X-Frame-Options, etc.)
+- Extracted **Worker host** (separate process from the API)
+- `AspNetCore.HealthChecks.NpgSql` + custom MinIO + outbox-lag checks
 
-## Project structure (17 projects total)
+## Project structure (19 projects total)
 
 ```
 src/
-├── BuildingBlocks/                — domain primitives, behaviors, outbox/inbox infra
+├── BuildingBlocks/                — domain primitives, behaviors, outbox/inbox infra,
+│                                    multi-tenancy primitives, storage abstraction,
+│                                    JWT issuer/validator, rate limiting, security
+│                                    headers, health checks, custom OTel meter
 ├── Contracts/
-│   ├── Catalog.Contracts/         — integration events Catalog publishes
-│   ├── Orders.Contracts/          — integration events Orders publishes
-│   └── Platform.Contracts/        — IFeatureFlagQuery
+│   ├── Catalog.Contracts/         — integration events Catalog publishes (with TenantId)
+│   ├── Orders.Contracts/          — integration events Orders publishes (with TenantId)
+│   └── Platform.Contracts/        — IFeatureFlagQuery, IIdempotencyStore
 ├── Modules/
-│   ├── Catalog/                   — product aggregate; owns "catalog" schema
-│   ├── Orders/                    — order aggregate; owns "orders" schema
-│   └── Platform/                  — feature flags + idempotency; owns "platform" schema
-└── Hosts/Api/                     — composition root + audience-specific endpoints
+│   ├── Catalog/                   — Product aggregate (TenantId + ImageKey); owns "catalog" schema
+│   ├── Orders/                    — Order aggregate (TenantId); owns "orders" schema
+│   └── Platform/                  — Tenants, FeatureFlags, IdempotencyKeys, DailyReports,
+│                                    SentEmails; owns "platform" schema; hosts Hangfire client
+└── Hosts/
+    ├── Api/                       — HTTP only (JWT auth, rate limiting, security headers,
+    │                                 demo token issuer, OIDC discovery, image upload,
+    │                                 buyer/seller/admin endpoints, /health/live + ready)
+    └── Worker/                    — Background only (OutboxProcessor, Quartz jobs,
+                                       Hangfire server + dashboard, /health)
 
 tests/
-└── ArchitectureTests/             — NetArchTest rules (module boundaries, layering)
+├── ArchitectureTests/             — NetArchTest rules (module boundaries, IMultiTenant, Worker ⊥ MVC)
+├── {Catalog,Orders,Platform}.UnitTests/        — domain logic, no I/O
+├── {Catalog,Orders,Platform}.IntegrationTests/ — Testcontainers Postgres
+├── EndToEndTests/                 — WebApplicationFactory + Testcontainers (Postgres + MinIO)
+└── Worker.Tests/                  — IHost test host + Testcontainers (OutboxProcessor, Quartz jobs)
+
+deploy/docker-compose.yml          — postgres + jaeger + minio + minio-init + api + worker
+Dockerfile.api                     — multi-stage build for the API host
+Dockerfile.worker                  — multi-stage build for the Worker host
 ```
-
-**Reference graph (enforced by the build):**
-
-```
-BuildingBlocks
-   ▲
-   │
-   ├── {Catalog,Orders,Platform}.Contracts
-   │
-   └── {Catalog,Orders,Platform} module projects
-            │                │              │
-            └─ owns its Contracts; references SIBLING Contracts where it subscribes;
-               NEVER references another module's impl
-            
-            Hosts/Api ── references all modules + all Contracts + BuildingBlocks
-```
-
-## The cross-module saga (the headline feature)
-
-`PlaceOrder` becomes **asynchronous**:
-
-```
-1. POST /api/buyer/orders             ─▶  Orders.PlaceOrderHandler
-                                            Order.Create -> Pending
-                                            db.Orders.Add + db.Outbox enqueue
-                                            SaveChanges (single txn)
-                                            (returns 201 with status=Pending)
-2. OutboxProcessor tick ─▶ IEventBus.Publish(OrderPlacedIntegrationEvent)
-3. Catalog.WhenOrderPlaced_DecrementStock (inbox-check, decrement, enqueue
-   StockDecremented or StockDecrementFailed in catalog outbox, mark inbox)
-4. OutboxProcessor tick (catalog) ─▶ IEventBus.Publish
-5. Orders.WhenStockDecremented_ConfirmOrder OR _FailOrder
-   (inbox-check, Confirm() or Fail(reason), mark inbox)
-```
-
-Saga completes in ~1s (500ms outbox poll × 2 hops). `GET /api/buyer/orders/{id}` shows `Confirmed` or `Failed` once the saga settles.
 
 ## Run with Docker Compose
 
@@ -76,88 +59,159 @@ Saga completes in ~1s (500ms outbox poll × 2 hops). `GET /api/buyer/orders/{id}
 docker compose -f deploy/docker-compose.yml up --build
 # postgres on :5432
 # jaeger UI on http://localhost:16686
-# app on http://localhost:5000
+# minio API on :9000, console on http://localhost:9001 (minioadmin/minioadmin)
+# api on http://localhost:5000
+# worker /health on http://localhost:5001, hangfire dashboard on http://localhost:5001/hangfire
 ```
 
-The app applies all three modules' migrations and seeds reference data (3 products + EnablePremiumBadge flag) on Development startup.
+The API applies migrations + seeds the `acme` and `globex` tenants + catalog data on Development startup. The Worker starts the OutboxProcessor + Quartz scheduler + Hangfire server.
 
 ## Walk through the demo
 
-[`demo.http`](demo.http) chains named REST Client requests so dynamic seed IDs flow through. Covers S1–S13 from `SHARED_SCOPE.md`, the async saga (PlaceOrder returns Pending; re-GET shows Confirmed), and the feature-flag toggle (admin sets `EnablePremiumBadge` rollout to 100%; buyer's `isPremium` flips after cache TTL).
+[`demo.http`](demo.http) chains REST Client requests through:
 
-## Auth (JWT Bearer with a dev-only token mint)
+1. `GET /.well-known/openid-configuration` + `jwks.json` — discovery
+2. Mint `Seller` / `Buyer` / `Admin` tokens for `acme`, plus a separate buyer token for `globex`
+3. Place an order under `acme`; watch the async saga complete via Worker outbox dispatch
+4. Switch to the `globex` buyer; verify they see ONLY Globex products (multi-tenancy isolation)
+5. Seller uploads a product image via presigned URL; buyer list shows `imageUrl`
+6. Admin sets `EnablePremiumBadge` rollout to 100% → buyer's `isPremium` flips
+7. Try the unauthenticated and wrong-role paths (S12, S13)
 
-Tier 3 wires the **real ASP.NET Core auth pipeline**: `AddMarketplaceAuthentication` (from `BuildingBlocks/Api/AuthDependencyInjection.cs`) registers `JwtBearer` with HS256 validation parameters and three role policies (`Buyer`/`Seller`/`Admin`). The host adds `app.UseAuthentication()` and `app.UseAuthorization()` to the pipeline; endpoint groups gate on `.RequireAuthorization("Buyer")` etc.
+## Authentication (RS256 JWT + demo issuer)
 
-`ICurrentUser` is satisfied by `HttpCurrentUser` (in `Hosts/Api/Authentication/`) reading `NameIdentifier` and `Role` claims off `HttpContext.User` — no header parsing.
+Tier 4 graduates the Tier 3 HS256 mechanism to **RS256 with a real demo issuer**:
 
-Token minting goes through `POST /api/dev/token` (Development-only) — body `{ userId, role }`, response `{ access_token, token_type, expires_at }`. The endpoint is registered behind `if (app.Environment.IsDevelopment())` so it can't ship. Tests use the same `JwtTokenIssuer` (from `BuildingBlocks/Infrastructure/Authentication/`) directly to mint tokens; `demo.http` uses the HTTP endpoint via named REST Client requests.
+- `GET /demo/token?role=Buyer&tenant=acme&userId={guid}` (Development only) → returns an RS256 JWT signed with the configured RSA private key. Claims: `sub`, `NameIdentifier`, `Role`, `tenant_id`, `jti`.
+- `GET /.well-known/openid-configuration` + `GET /.well-known/jwks.json` publish the public key — relying parties (Worker, future SDKs) validate without ever holding the signing material.
+- `JwtTokenIssuer` (BuildingBlocks) signs; `JwtPublicKeyProvider` exposes the public side for both JwtBearer middleware and the JWKS endpoint.
 
-Tier 4 graduates to **RS256 + a real issuer** with key rotation, multi-tenancy claims, and a discovery doc.
+The dev keypair sits in `appsettings.json` deliberately — operators override via secret store in prod and rotate via `KeyId`.
 
-## Auth placement (where each piece lives, and why)
+## Multi-tenancy
 
-| File | Project | Layer | Why |
-|---|---|---|---|
-| [`BuildingBlocks/Infrastructure/Authentication/JwtOptions.cs`](src/BuildingBlocks/Infrastructure/Authentication/JwtOptions.cs) | BuildingBlocks | Shared infra | Config DTO — sibling to other Infrastructure options (Outbox, etc.) |
-| [`BuildingBlocks/Infrastructure/Authentication/JwtTokenIssuer.cs`](src/BuildingBlocks/Infrastructure/Authentication/JwtTokenIssuer.cs) | BuildingBlocks | Shared infra | Crypto + `IClock` — same layer as outbox/event-bus/telemetry |
-| [`BuildingBlocks/Api/AuthDependencyInjection.cs`](src/BuildingBlocks/Api/AuthDependencyInjection.cs) | BuildingBlocks | Shared host helpers | Composition any future host wires identically |
-| [`Hosts/Api/Authentication/HttpCurrentUser.cs`](src/Hosts/Api/Authentication/HttpCurrentUser.cs) | Hosts/Api | Host | Bound to `HttpContext` — host concept, not shared kernel |
-| [`Hosts/Api/Endpoints/Dev/DevTokenEndpoints.cs`](src/Hosts/Api/Endpoints/Dev/DevTokenEndpoints.cs) | Hosts/Api | Host | HTTP endpoint, Development-only |
+Every aggregate root in every module implements `IMultiTenant`. Each module's DbContext applies an EF global query filter (`e => e.TenantId == _tenant.TenantId`). The API host's `TenantMiddleware` reads `tenant_id` off the JWT and writes the scoped `ITenantContext`; the `InMemoryEventBus` does the same per integration-event dispatch in the Worker. An architecture test fails the build if any new aggregate forgets `IMultiTenant`.
+
+Seeded tenants: `acme` (`aaaaaaaa-…`) + `globex` (`bbbbbbbb-…`).
+
+## File uploads (presigned URLs to MinIO/S3)
+
+Seller's two-step flow:
+
+1. `POST /api/seller/products/{id}/image-upload-url` body `{ contentType }` → returns `{ uploadUrl, publicUrl, key, expiresAt }`. Key is `{tenantId}/{productId}/{guid}`.
+2. Client PUTs bytes directly to `uploadUrl` (API host never sees the bytes).
+3. `POST /api/seller/products/{id}/image` body `{ key }` → server verifies the object actually landed, then stamps `Product.ImageKey`.
+4. Buyer's product DTO populates `ImageUrl` from `IFileStorage.GeneratePublicUrl(product.ImageKey)`.
+
+`Storage:Provider = S3` uses MinIO/AWS SDK; tests use `LocalFileStorage` or `Testcontainers.Minio`.
+
+## Worker host
+
+The Worker (`src/Hosts/Worker/`) hosts:
+
+- `OutboxProcessor` — moved here from the API at Tier 4. Polls each module's outbox, dispatches via `IEventBus` to subscriber integration handlers.
+- **Quartz scheduled jobs** — `ExpireStaleOrdersJob` (cron) cancels `Pending` orders > 30 min old. `DailyReportingJob` (02:00 UTC) writes per-tenant summaries to `platform.daily_reports`.
+- **Hangfire server + dashboard** — `WhenOrderConfirmed_SendEmail` enqueues `SendOrderEmailService` jobs that log + insert rows into `platform.sent_emails`. Dashboard at `/hangfire`.
+
+The Worker is a `WebApplication` only because Hangfire's dashboard needs HTTP routing. An architecture test asserts the Worker assembly does not depend on MVC controllers.
+
+## Rate limiting + security headers
+
+- **`per-user-writes`** — token bucket, 10 req/min (default), partitioned on `ICurrentUser.UserId`. Applied to POST/PUT/DELETE.
+- **`per-user-reads`** — fixed window, 100 req/min, partitioned by user. Applied to GET.
+- 429 responses carry `Retry-After`. Limits configurable via `RateLimit:Writes` / `RateLimit:Reads` (tests crank them up to avoid spurious rejections).
+- **Security headers** on every response: CSP `default-src 'self'`, HSTS 1 year, `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`.
+
+## Observability
+
+Custom OpenTelemetry instruments (registered on both hosts via `MarketplaceMeter.Name`):
+
+- `marketplace.orders.placed.total` — counter, tagged with `tenant_id`
+- `marketplace.orders.cancelled.total` — counter, tagged with `tenant_id` + `reason`
+- `marketplace.stock.decrements.total` — counter, tagged with `tenant_id`
+- `marketplace.outbox.processed.total` — counter, tagged with `module` + `outcome`
+- `marketplace.outbox.lag.seconds` — histogram of `now - OccurredAt` per dispatched message
+
+Plus the existing Tier 3 traces span both processes (API → outbox → Worker → outbox → API consumer).
+
+## Health checks
+
+- `GET /health/live` — process up, no downstream checks. Liveness only.
+- `GET /health/ready` — DB connectivity + MinIO bucket reachable + outbox lag under threshold. Degraded if `MinioHealthCheck` fails; degraded/unhealthy if outbox lag > 30s / 5min.
+- Worker exposes a tiny `/health` reporting `IHostApplicationLifetime.ApplicationStarted` state.
 
 ## Endpoints
 
 | Method | Path | Audience |
 |---|---|---|
+| GET | `/demo/token?role=...&tenant=...&userId=...` | Dev only (no auth) |
+| GET | `/.well-known/openid-configuration` | Anonymous |
+| GET | `/.well-known/jwks.json` | Anonymous |
 | POST | `/api/seller/products` | Seller |
+| POST | `/api/seller/products/{id}/image-upload-url` | Seller |
+| POST | `/api/seller/products/{id}/image` | Seller |
 | GET  | `/api/seller/products` | Seller |
-| GET  | `/api/buyer/products` (carries `isPremium` per feature flag) | Buyer |
-| POST | `/api/buyer/orders` (accepts `Idempotency-Key` header) | Buyer |
+| GET  | `/api/buyer/products` (carries `isPremium` + `imageUrl`) | Buyer |
+| POST | `/api/buyer/orders` (idempotency-key) | Buyer |
 | POST | `/api/buyer/orders/{id}/cancel` | Buyer |
 | GET  | `/api/buyer/orders[/{id}]` | Buyer |
 | GET  | `/api/admin/products` | Admin |
 | GET  | `/api/admin/orders` | Admin |
 | POST | `/api/admin/orders/{id}/cancel` | Admin |
-| GET  | `/api/admin/feature-flags` | Admin |
-| PUT  | `/api/admin/feature-flags/{name}/rollout` | Admin |
-| PUT  | `/api/admin/feature-flags/{name}/users/{userId}` | Admin |
-| POST | `/api/admin/feature-flags/{name}/toggle` | Admin |
-| GET  | `/health/live`, `/health/ready` | — |
+| GET/PUT/POST | `/api/admin/feature-flags/...` | Admin |
+| GET | `/health/live`, `/health/ready` | — |
 
-## Run the architecture tests
+## Run the tests
 
 ```bash
-dotnet test tests/ArchitectureTests/ArchitectureTests.csproj
-# 8 facts: module isolation (Catalog ⊥ Orders ⊥ Platform impl),
-# modules ⊥ Api host, Domain ⊥ EF Core, Domain ⊥ FluentValidation
+dotnet test
+# Catalog/Orders/Platform unit + integration suites (Testcontainers Postgres)
+# Worker.Tests (IHost + Testcontainers Postgres)
+# EndToEndTests (WebApplicationFactory + Testcontainers Postgres + MinIO)
+# ArchitectureTests (10 facts: module isolation, IMultiTenant rule, Worker ⊥ MVC, ...)
 ```
 
 ## How to add a new module
 
 1. Scaffold `src/Modules/X/X.csproj` + `src/Contracts/X.Contracts/X.Contracts.csproj`
-2. Define aggregates in `X/Domain/`, vertical slices in `X/Application/`, EF config + outbox/inbox stores + module-specific DbContext (with `HasDefaultSchema("x")`) in `X/Infrastructure/`
-3. Add an `XModule.AddXModule(IServiceCollection, IConfiguration)` extension that wires MediatR, validators, DbContext, IOutboxStore, integration event handlers, and module-private services
-4. Register integration event handlers as `IIntegrationEventHandler<TEvent>` — the in-memory event bus discovers them automatically via DI
-5. Wire `services.AddXModule(configuration)` in `Hosts/Api/Program.cs`
-6. Add architecture tests for the new module's boundaries
+2. **Make every aggregate root implement `IMultiTenant`** — the architecture test will fail otherwise
+3. Define aggregates in `X/Domain/`, slices in `X/Application/`, EF config + module-specific DbContext (with `HasDefaultSchema("x")` + tenant query filter) in `X/Infrastructure/`
+4. Add an `XModule.AddXModule(IServiceCollection, IConfiguration)` extension that wires MediatR, validators, DbContext, IOutboxStore, integration event handlers
+5. Register integration event handlers as `IIntegrationEventHandler<TEvent>` — `InMemoryEventBus` finds them via DI and lifts `TenantId` onto the ambient context before invoking them
+6. Wire `services.AddXModule(configuration)` in BOTH `Hosts/Api/Program.cs` AND `Hosts/Worker/Program.cs`
+7. Add architecture tests for the new module's boundaries
 
-## What's intentionally missing at Tier 3
+## What's intentionally missing at Tier 4
 
 | Missing | Earned at |
 |---|---|
-| Real message broker (RabbitMQ / Kafka) — in-memory `IEventBus` only | Tier 5 (microservices) |
-| Multi-tenancy with `TenantId` query filters | Tier 4 (platform) |
-| Real JWT issuer (RS256 + IdP, key rotation) — Tier 3 ships a dev mint | Tier 4 |
-| Separate Worker host (OutboxProcessor is in the Api host) | Tier 4 |
-| S3 / Blob storage for files | Tier 4 |
-| Distributed services + BFFs | Tier 5 |
-| Database-per-service physical isolation | Tier 5 |
+| Splitting modules into separate services | Tier 5 (microservices) |
+| External message broker (still in-process `IEventBus`) | Tier 5 |
+| Per-service database | Tier 5 |
+| API Gateway / BFFs | Tier 5 |
+| gRPC for cross-service calls | Tier 5 |
+| Quartz persistent job store enabled by default | Production override |
+| Real IdP federation (vs the demo issuer) | Production |
 
-The next branch (`tier-4-platform`) introduces multi-tenancy, JWT, S3, and a worker process; Tier 5 distributes the modules.
+The next branch (`tier-5-microservices`) splits the modules into independently-deployable services with a real message broker, per-service databases, and BFFs.
 
 ## Architecture Decision Records
 
-- [`docs/adr/0001-modular-monolith.md`](docs/adr/0001-modular-monolith.md) — why three modules with enforced boundaries
+- [`docs/adr/0001-modular-monolith.md`](docs/adr/0001-modular-monolith.md) — three modules with enforced boundaries
 - [`docs/adr/0002-outbox-inbox-pattern.md`](docs/adr/0002-outbox-inbox-pattern.md) — at-least-once + consumer dedup
 - [`docs/adr/0003-cross-module-saga-via-events.md`](docs/adr/0003-cross-module-saga-via-events.md) — async PlaceOrder choreography
-- [`docs/adr/0007-jwt-bearer-with-dev-mint.md`](docs/adr/0007-jwt-bearer-with-dev-mint.md) — HS256 dev mint placement across BuildingBlocks + Host
+- [`docs/adr/0004-cqrs-audience-projections.md`](docs/adr/0004-cqrs-audience-projections.md)
+- [`docs/adr/0005-db-backed-feature-flags.md`](docs/adr/0005-db-backed-feature-flags.md)
+- [`docs/adr/0006-architecture-tests.md`](docs/adr/0006-architecture-tests.md)
+- [`docs/adr/0007-jwt-bearer-with-dev-mint.md`](docs/adr/0007-jwt-bearer-with-dev-mint.md) — Tier 3's HS256 retrofit
+- [`docs/adr/0008-extract-worker-host.md`](docs/adr/0008-extract-worker-host.md) — Worker process split
+- [`docs/adr/0009-multi-tenancy-shared-db-strategy.md`](docs/adr/0009-multi-tenancy-shared-db-strategy.md) — `IMultiTenant` + query filters
+- [`docs/adr/0010-rs256-jwt-and-demo-issuer.md`](docs/adr/0010-rs256-jwt-and-demo-issuer.md) — RS256 + OIDC-shaped discovery
+- [`docs/adr/0011-s3-compatible-storage-with-presigned-urls.md`](docs/adr/0011-s3-compatible-storage-with-presigned-urls.md)
+- [`docs/adr/0012-quartz-and-hangfire-split.md`](docs/adr/0012-quartz-and-hangfire-split.md)
+
+## Runbooks
+
+- [`docs/runbooks/outbox-stuck.md`](docs/runbooks/outbox-stuck.md)
+- [`docs/runbooks/inbox-message-poisoned.md`](docs/runbooks/inbox-message-poisoned.md)
+- [`docs/runbooks/tenant-leakage-investigation.md`](docs/runbooks/tenant-leakage-investigation.md) — **NEW Tier 4**

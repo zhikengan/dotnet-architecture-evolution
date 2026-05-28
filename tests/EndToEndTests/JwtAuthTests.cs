@@ -116,6 +116,18 @@ public class JwtAuthTests(ApiFixture fx) : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Security_headers_are_attached_to_every_response()
+    {
+        var anon = fx.AnonymousClient();
+        var resp = await anon.GetAsync("/.well-known/openid-configuration");
+        resp.Headers.GetValues("Content-Security-Policy").Should().Contain("default-src 'self'");
+        resp.Headers.GetValues("X-Frame-Options").Should().Contain("DENY");
+        resp.Headers.GetValues("X-Content-Type-Options").Should().Contain("nosniff");
+        resp.Headers.GetValues("Strict-Transport-Security").Should().ContainSingle()
+            .Which.Should().Contain("max-age=31536000");
+    }
+
+    [Fact]
     public async Task Buyer_token_at_seller_endpoint_returns_403()
     {
         var buyer = fx.ClientFor("Buyer", ApiFixture.BuyerId);

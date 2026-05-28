@@ -8,8 +8,10 @@ namespace BuildingBlocks.Infrastructure.Authentication;
 /// Materializes the configured RSA public key once. The same instance backs
 /// both JwtBearer validation and the JWKS discovery endpoint, so relying
 /// parties and the validator always see identical key material + KeyId.
+/// RSA is intentionally not disposed — see <see cref="JwtTokenIssuer"/>
+/// for the parallel-test rationale.
 /// </summary>
-public sealed class JwtPublicKeyProvider : IDisposable
+public sealed class JwtPublicKeyProvider
 {
     private readonly RSA _publicKey;
 
@@ -36,6 +38,4 @@ public sealed class JwtPublicKeyProvider : IDisposable
             E = Base64UrlEncoder.Encode(p.Exponent!),
         };
     }
-
-    public void Dispose() => _publicKey.Dispose();
 }

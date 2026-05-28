@@ -42,6 +42,9 @@ builder.Services.AddMarketplaceAuthentication(builder.Configuration);
 // File storage (S3 via MinIO in docker-compose; LocalFileStorage fallback in tests)
 builder.Services.AddMarketplaceStorage(builder.Configuration);
 
+// Per-user rate limiting (10 writes/min, 100 reads/min) — applied to endpoint groups below.
+builder.Services.AddMarketplaceRateLimiting(builder.Configuration);
+
 // Outbox processor moved out at Tier 4 — runs in src/Hosts/Worker now.
 // API host still publishes outbox rows but no longer dispatches them.
 
@@ -76,10 +79,12 @@ builder.Services.AddOpenTelemetry()
 var app = builder.Build();
 
 app.UseSerilogRequestLogging();
+app.UseMarketplaceSecurityHeaders();
 app.UseMiddleware<CorrelationMiddleware>();
 app.UseAuthentication();
 app.UseMiddleware<TenantMiddleware>();
 app.UseAuthorization();
+app.UseRateLimiter();
 
 // Migrate + seed in Development only (forbidden in production paths per Tier 3 rules).
 if (app.Environment.IsDevelopment())

@@ -7,6 +7,7 @@ using Catalog.Application.Products.Queries.ListProductsForSeller;
 using MediatR;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Routing;
 
 namespace Marketplace.Api.Endpoints;
@@ -21,13 +22,13 @@ public static class SellerEndpoints
         {
             var r = await mediator.Send(new CreateProductCommand(body.Name, body.Price, body.Stock, user.UserId), ct);
             return r.ToHttpResult(rs => Results.Created($"/api/admin/products/{rs.Id}", rs));
-        });
+        }).RequireRateLimiting(RateLimiting.WritesPolicy);
 
         g.MapGet("/products", async (ICurrentUser user, ISender mediator, CancellationToken ct) =>
         {
             var r = await mediator.Send(new ListProductsForSellerQuery(user.UserId), ct);
             return r.ToHttpResult(Results.Ok);
-        });
+        }).RequireRateLimiting(RateLimiting.ReadsPolicy);
 
         // Two-step image upload: client requests a presigned URL, PUTs bytes
         // directly to storage, then confirms via the second endpoint. The
@@ -36,13 +37,13 @@ public static class SellerEndpoints
         {
             var r = await mediator.Send(new GetImageUploadUrlQuery(id, body.ContentType ?? "image/jpeg"), ct);
             return r.ToHttpResult(Results.Ok);
-        });
+        }).RequireRateLimiting(RateLimiting.WritesPolicy);
 
         g.MapPost("/products/{id:guid}/image", async (Guid id, ConfirmProductImageBody body, ISender mediator, CancellationToken ct) =>
         {
             var r = await mediator.Send(new ConfirmProductImageCommand(id, body.Key), ct);
             return r.ToHttpResult(Results.Ok);
-        });
+        }).RequireRateLimiting(RateLimiting.WritesPolicy);
 
         return app;
     }

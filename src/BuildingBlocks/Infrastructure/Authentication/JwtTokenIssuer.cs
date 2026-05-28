@@ -13,7 +13,7 @@ namespace BuildingBlocks.Infrastructure.Authentication;
 /// state is intentionally singleton-scoped — the RSA key materializes once
 /// at host startup and is reused.
 /// </summary>
-public sealed class JwtTokenIssuer : IDisposable
+public sealed class JwtTokenIssuer
 {
     private readonly JwtOptions _opts;
     private readonly IClock _clock;
@@ -24,6 +24,11 @@ public sealed class JwtTokenIssuer : IDisposable
     {
         _opts = options.Value;
         _clock = clock;
+        // RSA is intentionally not disposed. Microsoft.IdentityModel caches
+        // signature providers keyed off the SecurityKey; an eager Dispose
+        // here would invalidate cached providers held by sibling
+        // singletons across parallel test fixtures. The GC owns this RSA's
+        // lifetime alongside the singleton holding it.
         _privateKey = RSA.Create();
         _privateKey.ImportFromPem(_opts.PrivateKeyPem);
         var key = new RsaSecurityKey(_privateKey) { KeyId = _opts.KeyId };
@@ -57,6 +62,4 @@ public sealed class JwtTokenIssuer : IDisposable
         var handler = new JsonWebTokenHandler();
         return (handler.CreateToken(descriptor), expires);
     }
-
-    public void Dispose() => _privateKey.Dispose();
 }

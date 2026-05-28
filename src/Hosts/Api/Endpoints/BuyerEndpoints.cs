@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Orders.Application.Orders.CancelOwnOrder;
+using Microsoft.AspNetCore.RateLimiting;
 using Orders.Application.Orders.PlaceOrder;
 using Orders.Application.Orders.Queries;
 
@@ -21,7 +22,7 @@ public static class BuyerEndpoints
         {
             var r = await mediator.Send(new ListProductsForBuyerQuery(user.UserId), ct);
             return r.ToHttpResult(Results.Ok);
-        });
+        }).RequireRateLimiting(RateLimiting.ReadsPolicy);
 
         g.MapPost("/orders", async (PlaceOrderBody body, ICurrentUser user, ISender mediator, HttpContext ctx, CancellationToken ct) =>
         {
@@ -30,25 +31,25 @@ public static class BuyerEndpoints
                 new PlaceOrderCommand(user.UserId, body.ProductId, body.Quantity, string.IsNullOrWhiteSpace(idempotencyKey) ? null : idempotencyKey),
                 ct);
             return r.ToHttpResult(rs => Results.Created($"/api/buyer/orders/{rs.OrderId}", rs));
-        });
+        }).RequireRateLimiting(RateLimiting.WritesPolicy);
 
         g.MapPost("/orders/{id:guid}/cancel", async (Guid id, ICurrentUser user, ISender mediator, CancellationToken ct) =>
         {
             var r = await mediator.Send(new CancelOwnOrderCommand(id, user.UserId), ct);
             return r.ToHttpResult(() => Results.Ok(new { id, status = "Cancelled" }));
-        });
+        }).RequireRateLimiting(RateLimiting.WritesPolicy);
 
         g.MapGet("/orders", async (ICurrentUser user, ISender mediator, CancellationToken ct) =>
         {
             var r = await mediator.Send(new ListOrdersForBuyerQuery(user.UserId), ct);
             return r.ToHttpResult(Results.Ok);
-        });
+        }).RequireRateLimiting(RateLimiting.ReadsPolicy);
 
         g.MapGet("/orders/{id:guid}", async (Guid id, ICurrentUser user, ISender mediator, CancellationToken ct) =>
         {
             var r = await mediator.Send(new GetOrderForBuyerQuery(id, user.UserId), ct);
             return r.ToHttpResult(Results.Ok);
-        });
+        }).RequireRateLimiting(RateLimiting.ReadsPolicy);
 
         return app;
     }

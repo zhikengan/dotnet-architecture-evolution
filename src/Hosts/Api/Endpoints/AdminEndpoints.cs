@@ -3,6 +3,7 @@ using Catalog.Application.Products.Queries.ListProductsForAdmin;
 using MediatR;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Routing;
 using Orders.Application.Orders.ForceCancelOrder;
 using Orders.Application.Orders.Queries;
@@ -23,43 +24,43 @@ public static class AdminEndpoints
         {
             var r = await mediator.Send(new ListProductsForAdminQuery(), ct);
             return r.ToHttpResult(Results.Ok);
-        });
+        }).RequireRateLimiting(RateLimiting.ReadsPolicy);
 
         g.MapGet("/orders", async (ISender mediator, CancellationToken ct) =>
         {
             var r = await mediator.Send(new ListOrdersForAdminQuery(), ct);
             return r.ToHttpResult(Results.Ok);
-        });
+        }).RequireRateLimiting(RateLimiting.ReadsPolicy);
 
         g.MapPost("/orders/{id:guid}/cancel", async (Guid id, ISender mediator, CancellationToken ct) =>
         {
             var r = await mediator.Send(new ForceCancelOrderCommand(id), ct);
             return r.ToHttpResult(() => Results.Ok(new { id, status = "Cancelled" }));
-        });
+        }).RequireRateLimiting(RateLimiting.WritesPolicy);
 
         g.MapGet("/feature-flags", async (ISender mediator, CancellationToken ct) =>
         {
             var r = await mediator.Send(new ListFeatureFlagsQuery(), ct);
             return r.ToHttpResult(Results.Ok);
-        });
+        }).RequireRateLimiting(RateLimiting.ReadsPolicy);
 
         g.MapPut("/feature-flags/{name}/rollout", async (string name, RolloutBody body, ISender mediator, CancellationToken ct) =>
         {
             var r = await mediator.Send(new UpdateRolloutPercentageCommand(name, body.Percentage), ct);
             return r.ToHttpResult(() => Results.Ok(new { name, percentage = body.Percentage }));
-        });
+        }).RequireRateLimiting(RateLimiting.WritesPolicy);
 
         g.MapPut("/feature-flags/{name}/users/{userId:guid}", async (string name, Guid userId, ISender mediator, CancellationToken ct) =>
         {
             var r = await mediator.Send(new EnableForUserCommand(name, userId), ct);
             return r.ToHttpResult(() => Results.Ok(new { name, userId }));
-        });
+        }).RequireRateLimiting(RateLimiting.WritesPolicy);
 
         g.MapPost("/feature-flags/{name}/toggle", async (string name, ISender mediator, CancellationToken ct) =>
         {
             var r = await mediator.Send(new ToggleFlagCommand(name), ct);
             return r.ToHttpResult(() => Results.Ok(new { name, toggled = true }));
-        });
+        }).RequireRateLimiting(RateLimiting.WritesPolicy);
 
         return app;
     }

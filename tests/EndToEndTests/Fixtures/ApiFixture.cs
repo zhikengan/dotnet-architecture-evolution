@@ -78,6 +78,11 @@ public sealed class ApiFixture : WebApplicationFactory<Program>, IAsyncLifetime
                 ["Storage:SecretKey"] = "minioadmin",
                 ["Storage:Region"] = "us-east-1",
                 ["Storage:Bucket"] = TestBucket,
+                // Most e2e tests issue many requests as the same buyer/seller
+                // user; bump the per-user limits so only the dedicated
+                // rate-limiting test exercises 429.
+                ["RateLimit:Writes"] = "10000",
+                ["RateLimit:Reads"] = "10000",
             });
         });
     }

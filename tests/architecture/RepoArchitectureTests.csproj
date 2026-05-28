@@ -1,0 +1,45 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="coverlet.collector" />
+    <PackageReference Include="FluentAssertions" />
+    <PackageReference Include="NetArchTest.Rules" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- We reference all five services' main impl assemblies so the architecture
+         tests can inspect their type graphs. Each ProjectReference pulls the
+         service's Domain/Application/Infrastructure/Api/Worker via transitive deps. -->
+    <ProjectReference Include="..\..\services\catalog-service\src\Catalog.Api\Catalog.Api.csproj" />
+    <ProjectReference Include="..\..\services\catalog-service\src\Catalog.Worker\Catalog.Worker.csproj" />
+    <ProjectReference Include="..\..\services\orders-service\src\Orders.Api\Orders.Api.csproj" />
+    <ProjectReference Include="..\..\services\orders-service\src\Orders.Worker\Orders.Worker.csproj" />
+    <ProjectReference Include="..\..\services\identity-service\src\Identity.Api\Identity.Api.csproj" />
+    <ProjectReference Include="..\..\services\notifications-service\src\Notifications.Api\Notifications.Api.csproj" />
+    <ProjectReference Include="..\..\services\notifications-service\src\Notifications.Worker\Notifications.Worker.csproj" />
+    <ProjectReference Include="..\..\services\platform-service\src\Platform.Api\Platform.Api.csproj" />
+    <ProjectReference Include="..\..\gateways\buyer-bff\BuyerBff.csproj" />
+    <ProjectReference Include="..\..\gateways\seller-bff\SellerBff.csproj" />
+    <ProjectReference Include="..\..\gateways\admin-bff\AdminBff.csproj" />
+    <ProjectReference Include="..\..\shared\contracts\Catalog.Contracts\Catalog.Contracts.csproj" />
+    <ProjectReference Include="..\..\shared\contracts\Orders.Contracts\Orders.Contracts.csproj" />
+    <ProjectReference Include="..\..\shared\contracts\Identity.Contracts\Identity.Contracts.csproj" />
+    <ProjectReference Include="..\..\shared\contracts\Notifications.Contracts\Notifications.Contracts.csproj" />
+    <ProjectReference Include="..\..\shared\contracts\Platform.Contracts\Platform.Contracts.csproj" />
+    <ProjectReference Include="..\..\shared\BuildingBlocks\BuildingBlocks.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+    <Using Include="FluentAssertions" />
+  </ItemGroup>
+
+</Project>

@@ -1,3 +1,4 @@
+using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Notifications.Application.Abstractions;
 using Notifications.Domain.Notifications;
@@ -13,6 +14,12 @@ public sealed class NotificationsDbContext(DbContextOptions<NotificationsDbConte
     protected override void OnModelCreating(ModelBuilder mb)
     {
         mb.HasDefaultSchema(Schema);
+
+        // MassTransit EF Core outbox + inbox tables (required for UseBusOutbox at runtime).
+        mb.AddInboxStateEntity();
+        mb.AddOutboxStateEntity();
+        mb.AddOutboxMessageEntity();
+
         mb.Entity<Notification>(b =>
         {
             b.ToTable("notifications");

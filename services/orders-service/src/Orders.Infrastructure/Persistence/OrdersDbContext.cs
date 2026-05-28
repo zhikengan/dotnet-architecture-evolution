@@ -1,4 +1,5 @@
 using BuildingBlocks.Application;
+using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Orders.Application.Abstractions;
 using Orders.Domain.Orders;
@@ -17,6 +18,11 @@ public sealed class OrdersDbContext(DbContextOptions<OrdersDbContext> options, I
     protected override void OnModelCreating(ModelBuilder mb)
     {
         mb.HasDefaultSchema(Schema);
+
+        // MassTransit EF Core outbox + inbox tables (required for UseBusOutbox at runtime).
+        mb.AddInboxStateEntity();
+        mb.AddOutboxStateEntity();
+        mb.AddOutboxMessageEntity();
 
         mb.Entity<Order>(b =>
         {

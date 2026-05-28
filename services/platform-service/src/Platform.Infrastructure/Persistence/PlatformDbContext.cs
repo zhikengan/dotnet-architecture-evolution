@@ -1,3 +1,4 @@
+using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Platform.Application.Abstractions;
@@ -16,6 +17,11 @@ public sealed class PlatformDbContext(DbContextOptions<PlatformDbContext> option
     protected override void OnModelCreating(ModelBuilder mb)
     {
         mb.HasDefaultSchema(Schema);
+
+        // MassTransit EF Core outbox + inbox tables (required for UseBusOutbox at runtime).
+        mb.AddInboxStateEntity();
+        mb.AddOutboxStateEntity();
+        mb.AddOutboxMessageEntity();
 
         mb.Entity<FeatureFlag>(b =>
         {

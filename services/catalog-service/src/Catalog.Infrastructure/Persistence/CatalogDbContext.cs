@@ -1,8 +1,8 @@
 using BuildingBlocks.Application;
 using Catalog.Application.Abstractions;
 using Catalog.Domain.Products;
+using MassTransit;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Catalog.Infrastructure.Persistence;
 
@@ -18,6 +18,14 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options,
     protected override void OnModelCreating(ModelBuilder mb)
     {
         mb.HasDefaultSchema(Schema);
+
+        // MassTransit EF Core outbox + inbox tables. AddEntityFrameworkOutbox
+        // configures DI but does NOT inject entities into the EF model — that
+        // is on us. Without these three lines, the bus outbox fails at runtime
+        // with "relation OutboxState does not exist".
+        mb.AddInboxStateEntity();
+        mb.AddOutboxStateEntity();
+        mb.AddOutboxMessageEntity();
 
         mb.Entity<Product>(b =>
         {

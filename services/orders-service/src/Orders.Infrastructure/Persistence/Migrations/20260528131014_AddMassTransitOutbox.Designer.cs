@@ -2,22 +2,25 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
-using Platform.Infrastructure.Persistence;
+using Orders.Infrastructure.Persistence;
 
 #nullable disable
 
-namespace Platform.Infrastructure.Persistence.Migrations
+namespace Orders.Infrastructure.Persistence.Migrations
 {
-    [DbContext(typeof(PlatformDbContext))]
-    partial class PlatformDbContextModelSnapshot : ModelSnapshot
+    [DbContext(typeof(OrdersDbContext))]
+    [Migration("20260528131014_AddMassTransitOutbox")]
+    partial class AddMassTransitOutbox
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasDefaultSchema("platform")
+                .HasDefaultSchema("orders")
                 .HasAnnotation("ProductVersion", "10.0.0")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
@@ -67,7 +70,7 @@ namespace Platform.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("Delivered");
 
-                    b.ToTable("InboxState", "platform");
+                    b.ToTable("InboxState", "orders");
                 });
 
             modelBuilder.Entity("MassTransit.EntityFrameworkCoreIntegration.OutboxMessage", b =>
@@ -158,7 +161,7 @@ namespace Platform.Infrastructure.Persistence.Migrations
                     b.HasIndex("InboxMessageId", "InboxConsumerId", "SequenceNumber")
                         .IsUnique();
 
-                    b.ToTable("OutboxMessage", "platform");
+                    b.ToTable("OutboxMessage", "orders");
                 });
 
             modelBuilder.Entity("MassTransit.EntityFrameworkCoreIntegration.OutboxState", b =>
@@ -188,63 +191,41 @@ namespace Platform.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("Created");
 
-                    b.ToTable("OutboxState", "platform");
+                    b.ToTable("OutboxState", "orders");
                 });
 
-            modelBuilder.Entity("Platform.Domain.FeatureFlags.FeatureFlag", b =>
+            modelBuilder.Entity("Orders.Domain.Orders.Order", b =>
                 {
                     b.Property<Guid>("Id")
                         .HasColumnType("uuid");
 
-                    b.Property<string>("EnabledUserIds")
-                        .IsRequired()
-                        .HasColumnType("jsonb")
-                        .HasColumnName("enabled_user_ids");
+                    b.Property<Guid>("BuyerId")
+                        .HasColumnType("uuid");
 
-                    b.Property<bool>("IsEnabled")
-                        .HasColumnType("boolean");
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
 
-                    b.Property<string>("Key")
-                        .IsRequired()
-                        .HasMaxLength(120)
-                        .HasColumnType("character varying(120)");
+                    b.Property<string>("FailureReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
 
-                    b.Property<int>("RolloutPercentage")
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Quantity")
                         .HasColumnType("integer");
 
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("TenantId", "Key")
-                        .IsUnique();
-
-                    b.ToTable("feature_flags", "platform");
-                });
-
-            modelBuilder.Entity("Platform.Domain.IdempotencyKeys.IdempotencyKey", b =>
-                {
-                    b.Property<string>("Id")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<string>("ResultJson")
+                    b.Property<string>("Status")
                         .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("SeenAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
 
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uuid");
 
                     b.HasKey("Id");
 
-                    b.ToTable("idempotency_keys", "platform");
+                    b.ToTable("orders", "orders");
                 });
 
             modelBuilder.Entity("MassTransit.EntityFrameworkCoreIntegration.OutboxMessage", b =>

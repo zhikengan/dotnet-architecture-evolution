@@ -2,22 +2,25 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+using Notifications.Infrastructure.Persistence;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
-using Platform.Infrastructure.Persistence;
 
 #nullable disable
 
-namespace Platform.Infrastructure.Persistence.Migrations
+namespace Notifications.Infrastructure.Persistence.Migrations
 {
-    [DbContext(typeof(PlatformDbContext))]
-    partial class PlatformDbContextModelSnapshot : ModelSnapshot
+    [DbContext(typeof(NotificationsDbContext))]
+    [Migration("20260528131006_AddMassTransitOutbox")]
+    partial class AddMassTransitOutbox
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasDefaultSchema("platform")
+                .HasDefaultSchema("notifications")
                 .HasAnnotation("ProductVersion", "10.0.0")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
@@ -67,7 +70,7 @@ namespace Platform.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("Delivered");
 
-                    b.ToTable("InboxState", "platform");
+                    b.ToTable("InboxState", "notifications");
                 });
 
             modelBuilder.Entity("MassTransit.EntityFrameworkCoreIntegration.OutboxMessage", b =>
@@ -158,7 +161,7 @@ namespace Platform.Infrastructure.Persistence.Migrations
                     b.HasIndex("InboxMessageId", "InboxConsumerId", "SequenceNumber")
                         .IsUnique();
 
-                    b.ToTable("OutboxMessage", "platform");
+                    b.ToTable("OutboxMessage", "notifications");
                 });
 
             modelBuilder.Entity("MassTransit.EntityFrameworkCoreIntegration.OutboxState", b =>
@@ -188,63 +191,43 @@ namespace Platform.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("Created");
 
-                    b.ToTable("OutboxState", "platform");
+                    b.ToTable("OutboxState", "notifications");
                 });
 
-            modelBuilder.Entity("Platform.Domain.FeatureFlags.FeatureFlag", b =>
+            modelBuilder.Entity("Notifications.Domain.Notifications.Notification", b =>
                 {
                     b.Property<Guid>("Id")
                         .HasColumnType("uuid");
 
-                    b.Property<string>("EnabledUserIds")
+                    b.Property<string>("Body")
                         .IsRequired()
-                        .HasColumnType("jsonb")
-                        .HasColumnName("enabled_user_ids");
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
 
-                    b.Property<bool>("IsEnabled")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("Key")
+                    b.Property<string>("Recipient")
                         .IsRequired()
-                        .HasMaxLength(120)
-                        .HasColumnType("character varying(120)");
-
-                    b.Property<int>("RolloutPercentage")
-                        .HasColumnType("integer");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("TenantId", "Key")
-                        .IsUnique();
-
-                    b.ToTable("feature_flags", "platform");
-                });
-
-            modelBuilder.Entity("Platform.Domain.IdempotencyKeys.IdempotencyKey", b =>
-                {
-                    b.Property<string>("Id")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
-                    b.Property<string>("ResultJson")
-                        .IsRequired()
-                        .HasColumnType("text");
+                    b.Property<Guid?>("RelatedOrderId")
+                        .HasColumnType("uuid");
 
-                    b.Property<DateTime>("SeenAt")
+                    b.Property<DateTime>("SentAt")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
                     b.HasKey("Id");
 
-                    b.ToTable("idempotency_keys", "platform");
+                    b.HasIndex("RelatedOrderId");
+
+                    b.ToTable("notifications", "notifications");
                 });
 
             modelBuilder.Entity("MassTransit.EntityFrameworkCoreIntegration.OutboxMessage", b =>

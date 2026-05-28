@@ -23,3 +23,41 @@ jobs:
       - run: dotnet restore services/orders-service/Orders.sln
       - run: dotnet build services/orders-service/Orders.sln --no-restore -c Release
       - run: dotnet test services/orders-service/Orders.sln --no-build -c Release --logger trx
+
+  image-api:
+    needs: build-and-test
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions: { contents: read, packages: write }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with: { registry: ghcr.io, username: '${{ github.actor }}', password: '${{ secrets.GITHUB_TOKEN }}' }
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: services/orders-service/Dockerfile.api
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/orders-api:${{ github.sha }}
+            ghcr.io/${{ github.repository_owner }}/orders-api:latest
+
+  image-worker:
+    needs: build-and-test
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions: { contents: read, packages: write }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with: { registry: ghcr.io, username: '${{ github.actor }}', password: '${{ secrets.GITHUB_TOKEN }}' }
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: services/orders-service/Dockerfile.worker
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/orders-worker:${{ github.sha }}
+            ghcr.io/${{ github.repository_owner }}/orders-worker:latest

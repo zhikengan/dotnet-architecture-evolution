@@ -1,4 +1,5 @@
 using BuildingBlocks.Api;
+using BuildingBlocks.Api.HealthChecks;
 using BuildingBlocks.Application;
 using BuildingBlocks.Application.Behaviors;
 using BuildingBlocks.Infrastructure.Telemetry;
@@ -28,11 +29,11 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddSingleton<IClock, SystemClock>();
 builder.Services.AddScoped<ICurrentUser, HttpCurrentUser>();
 
+var pgConnectionString = builder.Configuration.GetConnectionString("Default")
+    ?? "Host=localhost;Port=5437;Database=platform;Username=platform;Password=platform";
 builder.Services.AddDbContext<PlatformDbContext>(opt =>
 {
-    var cs = builder.Configuration.GetConnectionString("Default")
-        ?? "Host=localhost;Port=5437;Database=platform;Username=platform;Password=platform";
-    opt.UseNpgsql(cs, npg => npg.MigrationsHistoryTable("__ef_migrations", PlatformDbContext.Schema));
+    opt.UseNpgsql(pgConnectionString, npg => npg.MigrationsHistoryTable("__ef_migrations", PlatformDbContext.Schema));
 });
 builder.Services.AddScoped<IPlatformDbContext>(sp => sp.GetRequiredService<PlatformDbContext>());
 
@@ -65,6 +66,7 @@ builder.Services.AddAuthorization(opt =>
 });
 
 builder.Services.AddGrpc();
+builder.Services.AddMarketplaceHealthChecks(builder.Configuration, pgConnectionString);
 
 var app = builder.Build();
 
@@ -80,7 +82,7 @@ app.UseSerilogRequestLogging();
 app.UseAuthentication();
 app.UseAuthorization();
 
-app.MapGet("/health", () => Results.Ok(new { status = "ok", service = ServiceName }));
+app.MapMarketplaceHealthChecks();
 app.MapAdminEndpoints();
 app.MapGrpcService<PlatformGrpcService>();
 

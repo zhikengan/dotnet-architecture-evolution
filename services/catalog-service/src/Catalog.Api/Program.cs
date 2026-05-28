@@ -1,4 +1,5 @@
 using BuildingBlocks.Api;
+using BuildingBlocks.Api.HealthChecks;
 using BuildingBlocks.Application;
 using BuildingBlocks.Application.Behaviors;
 using BuildingBlocks.Infrastructure.Telemetry;
@@ -30,11 +31,11 @@ builder.Services.AddSingleton<IClock, SystemClock>();
 builder.Services.AddScoped<ITenantContext, TenantContext>();
 builder.Services.AddScoped<ICurrentUser, HttpCurrentUser>();
 
+var pgConnectionString = builder.Configuration.GetConnectionString("Default")
+    ?? "Host=localhost;Port=5433;Database=catalog;Username=catalog;Password=catalog";
 builder.Services.AddDbContext<CatalogDbContext>((sp, opt) =>
 {
-    var cs = builder.Configuration.GetConnectionString("Default")
-        ?? "Host=localhost;Port=5433;Database=catalog;Username=catalog;Password=catalog";
-    opt.UseNpgsql(cs, npg => npg.MigrationsHistoryTable("__ef_migrations", CatalogDbContext.Schema));
+    opt.UseNpgsql(pgConnectionString, npg => npg.MigrationsHistoryTable("__ef_migrations", CatalogDbContext.Schema));
 });
 builder.Services.AddScoped<ICatalogDbContext>(sp => sp.GetRequiredService<CatalogDbContext>());
 
@@ -72,6 +73,7 @@ builder.Services.AddAuthorization(opt =>
 });
 
 builder.Services.AddGrpc();
+builder.Services.AddMarketplaceHealthChecks(builder.Configuration, pgConnectionString);
 
 var app = builder.Build();
 
@@ -89,7 +91,7 @@ app.UseAuthentication();
 app.UseMiddleware<TenantMiddleware>();
 app.UseAuthorization();
 
-app.MapGet("/health", () => Results.Ok(new { status = "ok", service = ServiceName }));
+app.MapMarketplaceHealthChecks();
 app.MapSellerEndpoints();
 app.MapBuyerEndpoints();
 app.MapAdminEndpoints();

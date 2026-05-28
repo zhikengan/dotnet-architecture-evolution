@@ -1,3 +1,4 @@
+using BuildingBlocks.Api.HealthChecks;
 using BuildingBlocks.Application;
 using BuildingBlocks.Application.Behaviors;
 using BuildingBlocks.Infrastructure.Telemetry;
@@ -27,11 +28,11 @@ builder.Services.AddSingleton<IClock, SystemClock>();
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection("Jwt"));
 builder.Services.AddSingleton<IJwtTokenIssuer, JwtTokenIssuer>();
 
+var pgConnectionString = builder.Configuration.GetConnectionString("Default")
+    ?? "Host=localhost;Port=5435;Database=identity;Username=identity;Password=identity";
 builder.Services.AddDbContext<IdentityDbContext>((sp, opt) =>
 {
-    var cs = builder.Configuration.GetConnectionString("Default")
-        ?? "Host=localhost;Port=5435;Database=identity;Username=identity;Password=identity";
-    opt.UseNpgsql(cs, npg => npg.MigrationsHistoryTable("__ef_migrations", IdentityDbContext.Schema));
+    opt.UseNpgsql(pgConnectionString, npg => npg.MigrationsHistoryTable("__ef_migrations", IdentityDbContext.Schema));
 });
 builder.Services.AddScoped<IIdentityDbContext>(sp => sp.GetRequiredService<IdentityDbContext>());
 
@@ -45,6 +46,7 @@ builder.Services.AddMediatR(cfg =>
 });
 
 builder.Services.AddGrpc();
+builder.Services.AddMarketplaceHealthChecks(builder.Configuration, pgConnectionString);
 
 var app = builder.Build();
 
@@ -58,7 +60,7 @@ using (var scope = app.Services.CreateScope())
 
 app.UseSerilogRequestLogging();
 
-app.MapGet("/health", () => Results.Ok(new { status = "ok", service = ServiceName }));
+app.MapMarketplaceHealthChecks();
 app.MapDemoTokenEndpoints();
 app.MapGrpcService<IdentityGrpcService>();
 

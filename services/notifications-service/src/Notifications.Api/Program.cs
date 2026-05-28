@@ -1,4 +1,5 @@
 using BuildingBlocks.Api;
+using BuildingBlocks.Api.HealthChecks;
 using BuildingBlocks.Application;
 using BuildingBlocks.Application.Behaviors;
 using BuildingBlocks.Infrastructure.Telemetry;
@@ -27,11 +28,11 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddSingleton<IClock, SystemClock>();
 builder.Services.AddScoped<ICurrentUser, HttpCurrentUser>();
 
+var pgConnectionString = builder.Configuration.GetConnectionString("Default")
+    ?? "Host=localhost;Port=5436;Database=notifications;Username=notifications;Password=notifications";
 builder.Services.AddDbContext<NotificationsDbContext>(opt =>
 {
-    var cs = builder.Configuration.GetConnectionString("Default")
-        ?? "Host=localhost;Port=5436;Database=notifications;Username=notifications;Password=notifications";
-    opt.UseNpgsql(cs, npg => npg.MigrationsHistoryTable("__ef_migrations", NotificationsDbContext.Schema));
+    opt.UseNpgsql(pgConnectionString, npg => npg.MigrationsHistoryTable("__ef_migrations", NotificationsDbContext.Schema));
 });
 builder.Services.AddScoped<INotificationsDbContext>(sp => sp.GetRequiredService<NotificationsDbContext>());
 
@@ -63,6 +64,8 @@ builder.Services.AddAuthorization(opt =>
     opt.AddPolicy("admin", p => p.RequireClaim("role", "Admin"));
 });
 
+builder.Services.AddMarketplaceHealthChecks(builder.Configuration, pgConnectionString);
+
 var app = builder.Build();
 
 using (var scope = app.Services.CreateScope())
@@ -75,7 +78,7 @@ app.UseSerilogRequestLogging();
 app.UseAuthentication();
 app.UseAuthorization();
 
-app.MapGet("/health", () => Results.Ok(new { status = "ok", service = ServiceName }));
+app.MapMarketplaceHealthChecks();
 app.MapAdminNotificationEndpoints();
 
 await app.RunAsync();

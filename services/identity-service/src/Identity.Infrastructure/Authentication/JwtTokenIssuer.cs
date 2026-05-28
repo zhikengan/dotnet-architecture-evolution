@@ -8,7 +8,15 @@ using Microsoft.IdentityModel.Tokens;
 
 namespace Identity.Infrastructure.Authentication;
 
-public sealed class JwtTokenIssuer(IOptions<JwtOptions> options, IClock clock) : IJwtTokenIssuer, IDisposable
+/// <summary>
+/// Signs RS256 JWTs for the marketplace. Registered as a singleton — the RSA
+/// is intentionally NOT disposed: <c>Microsoft.IdentityModel</c> caches
+/// signature providers keyed off the <see cref="SecurityKey"/>, and a parallel
+/// test fixture that disposed its own RSA would invalidate cached providers
+/// held by other fixtures (a real bug Tier 4 fixed; see Tier 4 ADR-0010). The
+/// GC owns this RSA's lifetime alongside the singleton.
+/// </summary>
+public sealed class JwtTokenIssuer(IOptions<JwtOptions> options, IClock clock) : IJwtTokenIssuer
 {
     private readonly JwtOptions _opt = options.Value;
     private readonly RSA _rsa = LoadRsa(options.Value);
@@ -71,6 +79,4 @@ public sealed class JwtTokenIssuer(IOptions<JwtOptions> options, IClock clock) :
         }
         return rsa;
     }
-
-    public void Dispose() => _rsa.Dispose();
 }

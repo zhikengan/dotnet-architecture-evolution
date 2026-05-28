@@ -77,8 +77,12 @@ builder.Services.AddMarketplaceHealthChecks(builder.Configuration, pgConnectionS
 
 var app = builder.Build();
 
-using (var scope = app.Services.CreateScope())
+// Migrate + seed in Development only. Production deployments apply migration
+// bundles out-of-band (see docs/runbooks/migrations.md) so concurrent app
+// instances don't race on `MigrateAsync` during a rolling deploy.
+if (app.Environment.IsDevelopment())
 {
+    using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<CatalogDbContext>();
     await db.Database.MigrateAsync();
     var clock = scope.ServiceProvider.GetRequiredService<IClock>();

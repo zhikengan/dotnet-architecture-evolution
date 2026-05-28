@@ -76,8 +76,11 @@ builder.Services.AddMarketplaceHealthChecks(builder.Configuration, pgConnectionS
 
 var app = builder.Build();
 
-using (var scope = app.Services.CreateScope())
+// Migrate in Development only. Production applies migration bundles out-of-band
+// (see docs/runbooks/migrations.md) so concurrent instances don't race.
+if (app.Environment.IsDevelopment())
 {
+    using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<OrdersDbContext>();
     await db.Database.MigrateAsync();
 }

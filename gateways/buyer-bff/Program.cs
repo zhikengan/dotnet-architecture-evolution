@@ -31,6 +31,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     });
 
 builder.Services.AddAuthorization();
+builder.Services.AddMarketplaceRateLimiting(builder.Configuration);
 
 // YARP — routes pulled from appsettings.json under "ReverseProxy".
 // Transforms forward the Authorization header verbatim so downstream
@@ -47,9 +48,11 @@ builder.Services.AddReverseProxy()
 var app = builder.Build();
 
 app.UseSerilogRequestLogging();
+app.UseMarketplaceSecurityHeaders();
 app.UseMiddleware<CorrelationMiddleware>();
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseRateLimiter();
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok", service = ServiceName }));
 app.MapReverseProxy();

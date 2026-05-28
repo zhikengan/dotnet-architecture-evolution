@@ -34,6 +34,7 @@ builder.Services.AddAuthorization(opt =>
 {
     opt.AddPolicy("admin", p => p.RequireClaim("role", "Admin"));
 });
+builder.Services.AddMarketplaceRateLimiting(builder.Configuration);
 
 builder.Services.AddReverseProxy()
     .LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"))
@@ -47,9 +48,11 @@ builder.Services.AddReverseProxy()
 var app = builder.Build();
 
 app.UseSerilogRequestLogging();
+app.UseMarketplaceSecurityHeaders();
 app.UseMiddleware<CorrelationMiddleware>();
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseRateLimiter();
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok", service = ServiceName }));
 app.MapReverseProxy();

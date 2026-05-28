@@ -116,6 +116,27 @@ public class JwtAuthTests(ApiFixture fx) : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Health_live_returns_200()
+    {
+        var anon = fx.AnonymousClient();
+        var resp = await anon.GetAsync("/health/live");
+        resp.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task Health_ready_returns_200_with_check_details()
+    {
+        var anon = fx.AnonymousClient();
+        var resp = await anon.GetAsync("/health/ready");
+        // 200 = Healthy, 503 = Unhealthy. MinIO may be Degraded depending on
+        // bucket state — Degraded still returns 200 by default.
+        resp.StatusCode.Should().BeOneOf(HttpStatusCode.OK, HttpStatusCode.ServiceUnavailable);
+        var body = await resp.Content.ReadFromJsonAsync<JsonElement>();
+        body.GetProperty("status").GetString().Should().NotBeNullOrEmpty();
+        body.GetProperty("checks").GetArrayLength().Should().BeGreaterThan(0);
+    }
+
+    [Fact]
     public async Task Security_headers_are_attached_to_every_response()
     {
         var anon = fx.AnonymousClient();

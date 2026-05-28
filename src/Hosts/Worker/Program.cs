@@ -74,8 +74,12 @@ var app = builder.Build();
 
 app.UseSerilogRequestLogging();
 
-// Minimal liveness endpoint. The Worker does NOT mount any business routes.
-app.MapGet("/health", () => Results.Ok(new { status = "up" }));
+// Minimal liveness endpoint. The Worker does NOT mount any business routes;
+// readiness is the host's IHostApplicationLifetime reporting "started".
+app.MapGet("/health", (IHostApplicationLifetime lifetime) =>
+    lifetime.ApplicationStarted.IsCancellationRequested
+        ? Results.Ok(new { status = "up" })
+        : Results.Json(new { status = "starting" }, statusCode: StatusCodes.Status503ServiceUnavailable));
 
 // Hangfire dashboard at /hangfire — the only HTTP UI the Worker exposes.
 app.UseMarketplaceHangfireDashboard();

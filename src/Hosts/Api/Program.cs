@@ -1,4 +1,5 @@
 using BuildingBlocks.Api;
+using BuildingBlocks.Api.HealthChecks;
 using BuildingBlocks.Application;
 using BuildingBlocks.Application.Behaviors;
 using BuildingBlocks.Infrastructure.EventBus;
@@ -44,6 +45,10 @@ builder.Services.AddMarketplaceStorage(builder.Configuration);
 
 // Per-user rate limiting (10 writes/min, 100 reads/min) — applied to endpoint groups below.
 builder.Services.AddMarketplaceRateLimiting(builder.Configuration);
+
+// Health checks (Postgres + MinIO + outbox lag). Liveness probe is the bare
+// /health/live below; readiness runs the full check set.
+builder.Services.AddMarketplaceHealthChecks(builder.Configuration);
 
 // Outbox processor moved out at Tier 4 — runs in src/Hosts/Worker now.
 // API host still publishes outbox rows but no longer dispatches them.
@@ -107,8 +112,19 @@ if (app.Environment.IsDevelopment())
 }
 
 app.MapGet("/", () => "Marketplace API — Tier 4 (platform)");
-app.MapGet("/health/live", () => Results.Ok("live"));
-app.MapGet("/health/ready", () => Results.Ok("ready"));
+
+// Liveness: process is up and the host can answer. No downstream checks —
+// otherwise a transient DB blip would kill the pod even though the API
+// could still serve cached reads.
+app.MapGet("/health/live", () => Results.Ok(new { status = "live" })).AllowAnonymous();
+
+// Readiness: run every check tagged "ready" — DB, MinIO, outbox lag. Pods
+// failing this drop out of load-balancer rotation but stay alive.
+app.MapHealthChecks("/health/ready", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains(HealthChecksDependencyInjection.ReadyTag),
+    ResponseWriter = HealthCheckJson.Write,
+}).AllowAnonymous();
 
 // OIDC-style discovery endpoints — always mounted; safe to expose because
 // they publish ONLY the public key, never the signing material.

@@ -9,7 +9,6 @@ using Orders.Application.Abstractions;
 using Orders.Contracts.IntegrationEvents;
 using Orders.Domain.Orders;
 using Orders.Domain.Orders.Errors;
-using Orders.Domain.Orders.Events;
 
 namespace Orders.Application.Orders.CancelOwnOrder;
 
@@ -41,10 +40,12 @@ public sealed class CancelOwnOrderHandler(
         var order = await db.Orders.FirstOrDefaultAsync(o => o.Id == oid, ct);
         if (order is null) return Result.Failure(OrderErrors.NotFound);
 
+        // Capture pre-cancel state — Confirmed orders had stock decremented; Pending didn't.
+        var stockWasDecremented = order.Status == OrderStatus.Confirmed;
+
         var r = order.Cancel(cmd.BuyerId);
         if (r.IsFailure) return r;
 
-        var cancelEvent = order.DomainEvents.OfType<OrderCancelled>().Last();
         await bus.Publish(new OrderCancelledIntegrationEvent(
             MessageId: Guid.NewGuid(),
             OccurredAt: clock.UtcNow,
@@ -52,7 +53,7 @@ public sealed class CancelOwnOrderHandler(
             OrderId: order.Id.Value,
             ProductId: order.ProductId,
             Quantity: order.Quantity,
-            StockWasDecremented: cancelEvent.StockWasDecremented), ct);
+            StockWasDecremented: stockWasDecremented), ct);
 
         await db.SaveChangesAsync(ct);
         return Result.Success();

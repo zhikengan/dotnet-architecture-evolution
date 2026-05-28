@@ -1,0 +1,19 @@
+### notifications-service — direct API calls. Read-only admin endpoints;
+### writes happen via RabbitMQ consumers (OrderConfirmed/Cancelled/Failed).
+
+@notifications = http://localhost:5400
+@identity      = http://localhost:5300
+@adminId       = 33333333-3333-3333-3333-333333333333
+
+### Mint admin token
+# @name adminToken
+GET {{identity}}/demo/token?role=Admin&userId={{adminId}}
+@admin = {{adminToken.response.body.token}}
+
+### List notifications by order id (populated after the saga confirms an order)
+### Replace {orderId} with a real id from orders-service / admin-bff.
+GET {{notifications}}/api/admin/notifications/by-order/00000000-0000-0000-0000-000000000000
+Authorization: Bearer {{admin}}
+
+### Health
+GET {{notifications}}/health

@@ -1,0 +1,72 @@
+### catalog-service — direct API calls (bypasses BFFs).
+###   docker compose up -d catalog-api catalog-worker catalog-db rabbitmq identity-api identity-db
+###   Token is minted from identity-service; catalog-api validates against its JWKS.
+
+@catalog   = http://localhost:5100
+@identity  = http://localhost:5300
+@sellerId  = 11111111-1111-1111-1111-111111111111
+@buyerId   = 22222222-2222-2222-2222-222222222222
+@adminId   = 33333333-3333-3333-3333-333333333333
+
+### Mint tokens
+# @name sellerToken
+GET {{identity}}/demo/token?role=Seller&userId={{sellerId}}
+
+# @name buyerToken
+GET {{identity}}/demo/token?role=Buyer&userId={{buyerId}}
+
+# @name adminToken
+GET {{identity}}/demo/token?role=Admin&userId={{adminId}}
+
+@seller = {{sellerToken.response.body.token}}
+@buyer  = {{buyerToken.response.body.token}}
+@admin  = {{adminToken.response.body.token}}
+
+### S1: seller creates a product
+# @name created
+POST {{catalog}}/api/seller/products
+Authorization: Bearer {{seller}}
+Content-Type: application/json
+
+{
+  "name": "Service-Direct Widget",
+  "price": 12,
+  "stock": 30,
+  "sellerId": "{{sellerId}}"
+}
+
+### S2: empty name → 400
+POST {{catalog}}/api/seller/products
+Authorization: Bearer {{seller}}
+Content-Type: application/json
+
+{ "name": "", "price": 10, "stock": 5, "sellerId": "{{sellerId}}" }
+
+### S3: zero price → 400
+POST {{catalog}}/api/seller/products
+Authorization: Bearer {{seller}}
+Content-Type: application/json
+
+{ "name": "Free", "price": 0, "stock": 5, "sellerId": "{{sellerId}}" }
+
+### S10: buyer list (Published only)
+GET {{catalog}}/api/buyer/products
+Authorization: Bearer {{buyer}}
+
+### S11: admin list (everything)
+GET {{catalog}}/api/admin/products
+Authorization: Bearer {{admin}}
+
+### Admin suspend a product
+POST {{catalog}}/api/admin/products/{{created.response.body.id}}/suspend
+Authorization: Bearer {{admin}}
+
+### S12: no auth → 401
+GET {{catalog}}/api/buyer/products
+
+### S13: wrong role (buyer on seller endpoint) → 403
+POST {{catalog}}/api/seller/products
+Authorization: Bearer {{buyer}}
+Content-Type: application/json
+
+{ "name": "Naughty", "price": 1, "stock": 1, "sellerId": "{{buyerId}}" }

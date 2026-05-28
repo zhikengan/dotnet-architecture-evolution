@@ -1,0 +1,35 @@
+### platform-service — direct API calls. Feature flags + idempotency keys.
+
+@platform = http://localhost:5500
+@identity = http://localhost:5300
+@adminId  = 33333333-3333-3333-3333-333333333333
+
+### Mint admin token
+# @name adminToken
+GET {{identity}}/demo/token?role=Admin&userId={{adminId}}
+@admin = {{adminToken.response.body.token}}
+
+### List all feature flags for the admin's tenant (Acme)
+GET {{platform}}/api/admin/feature-flags
+Authorization: Bearer {{admin}}
+
+### Set rollout to 100% — Tier 4-style admin endpoint
+PUT {{platform}}/api/admin/feature-flags/EnablePremiumBadge/rollout
+Authorization: Bearer {{admin}}
+Content-Type: application/json
+
+{ "percentage": 100 }
+
+### Toggle the flag — also publishes FeatureFlagToggledIntegrationEvent
+POST {{platform}}/api/admin/feature-flags/EnablePremiumBadge/toggle
+Authorization: Bearer {{admin}}
+Content-Type: application/json
+
+{ "isEnabled": false }
+
+### Opt a specific user in (even when rollout is 0%)
+PUT {{platform}}/api/admin/feature-flags/EnablePremiumBadge/users/22222222-2222-2222-2222-222222222222
+Authorization: Bearer {{admin}}
+
+### Health
+GET {{platform}}/health

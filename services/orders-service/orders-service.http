@@ -1,0 +1,67 @@
+### orders-service — direct API calls (bypasses buyer-bff).
+
+@orders    = http://localhost:5200
+@catalog   = http://localhost:5100
+@identity  = http://localhost:5300
+@sellerId  = 11111111-1111-1111-1111-111111111111
+@buyerId   = 22222222-2222-2222-2222-222222222222
+@otherBuyerId = 44444444-4444-4444-4444-444444444444
+@adminId   = 33333333-3333-3333-3333-333333333333
+
+### Mint tokens
+# @name buyerToken
+GET {{identity}}/demo/token?role=Buyer&userId={{buyerId}}
+
+# @name otherBuyerToken
+GET {{identity}}/demo/token?role=Buyer&userId={{otherBuyerId}}
+
+# @name adminToken
+GET {{identity}}/demo/token?role=Admin&userId={{adminId}}
+
+# @name sellerToken
+GET {{identity}}/demo/token?role=Seller&userId={{sellerId}}
+
+@buyer  = {{buyerToken.response.body.token}}
+@admin  = {{adminToken.response.body.token}}
+@seller = {{sellerToken.response.body.token}}
+@otherBuyer = {{otherBuyerToken.response.body.token}}
+
+### Seed a product in catalog so we have something to order
+# @name product
+POST {{catalog}}/api/seller/products
+Authorization: Bearer {{seller}}
+Content-Type: application/json
+
+{ "name": "OrderTarget", "price": 20, "stock": 10, "sellerId": "{{sellerId}}" }
+
+### S4: buyer places order — returns Pending, saga eventually flips to Confirmed
+# @name placed
+POST {{orders}}/api/buyer/orders
+Authorization: Bearer {{buyer}}
+Content-Type: application/json
+
+{ "buyerId": "{{buyerId}}", "productId": "{{product.response.body.id}}", "quantity": 2 }
+
+### Poll for status — wait ~5s after place, expect Confirmed
+GET {{orders}}/api/buyer/orders/{{placed.response.body.orderId}}
+Authorization: Bearer {{buyer}}
+
+### S7: buyer cancels their own pending order
+POST {{orders}}/api/buyer/orders/{{placed.response.body.orderId}}/cancel
+Authorization: Bearer {{buyer}}
+
+### S8: other buyer attempts to cancel — 403 (NotOwner)
+POST {{orders}}/api/buyer/orders/{{placed.response.body.orderId}}/cancel
+Authorization: Bearer {{otherBuyer}}
+
+### Buyer lists own orders
+GET {{orders}}/api/buyer/orders
+Authorization: Bearer {{buyer}}
+
+### Admin lists all orders
+GET {{orders}}/api/admin/orders
+Authorization: Bearer {{admin}}
+
+### S9: admin force-cancels (use a different order id from `admin list`)
+# POST {{orders}}/api/admin/orders/{ORDER_ID}/cancel
+# Authorization: Bearer {{admin}}

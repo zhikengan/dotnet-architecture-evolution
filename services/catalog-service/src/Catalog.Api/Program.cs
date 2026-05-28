@@ -78,7 +78,7 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<CatalogDbContext>();
-    await db.Database.EnsureCreatedAsync();
+    await db.Database.MigrateAsync();
     var clock = scope.ServiceProvider.GetRequiredService<IClock>();
     await CatalogDataSeeder.SeedAsync(db, clock);
 }

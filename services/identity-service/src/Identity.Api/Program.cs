@@ -51,7 +51,7 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
-    await db.Database.EnsureCreatedAsync();
+    await db.Database.MigrateAsync();
     var clock = scope.ServiceProvider.GetRequiredService<IClock>();
     await IdentityDataSeeder.SeedAsync(db, clock);
 }

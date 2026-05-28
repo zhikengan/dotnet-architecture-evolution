@@ -5,7 +5,14 @@ using Platform.Application.Abstractions;
 
 namespace Platform.Application.FeatureFlags.Queries;
 
-public sealed record FeatureFlagDto(Guid Id, Guid TenantId, string Key, bool IsEnabled, DateTime UpdatedAt);
+public sealed record FeatureFlagDto(
+    Guid Id,
+    Guid TenantId,
+    string Key,
+    bool IsEnabled,
+    int RolloutPercentage,
+    IReadOnlyList<Guid> EnabledUserIds,
+    DateTime UpdatedAt);
 
 public sealed record ListFeatureFlagsQuery : IRequest<Result<IReadOnlyList<FeatureFlagDto>>>;
 
@@ -18,7 +25,14 @@ public sealed class ListFeatureFlagsHandler(IPlatformDbContext db)
             .OrderBy(f => f.Key)
             .ToListAsync(ct);
         IReadOnlyList<FeatureFlagDto> dtos = flags
-            .Select(f => new FeatureFlagDto(f.Id.Value, f.TenantId, f.Key, f.IsEnabled, f.UpdatedAt))
+            .Select(f => new FeatureFlagDto(
+                f.Id.Value,
+                f.TenantId,
+                f.Key,
+                f.IsEnabled,
+                f.RolloutPercentage,
+                f.EnabledUserIds.ToList(),
+                f.UpdatedAt))
             .ToList();
         return Result.Success(dtos);
     }

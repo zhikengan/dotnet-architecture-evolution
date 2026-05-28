@@ -1,5 +1,5 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Platform.Application.Abstractions;
 using Platform.Domain.FeatureFlags;
 using Platform.Domain.IdempotencyKeys;
@@ -25,6 +25,17 @@ public sealed class PlatformDbContext(DbContextOptions<PlatformDbContext> option
             b.Property(x => x.TenantId);
             b.Property(x => x.Key).HasMaxLength(120).IsRequired();
             b.Property(x => x.IsEnabled);
+            b.Property(x => x.RolloutPercentage);
+            b.Property(x => x.EnabledUserIds)
+                .HasColumnName("enabled_user_ids")
+                .HasColumnType("jsonb")
+                .HasConversion(
+                    v => System.Text.Json.JsonSerializer.Serialize(v, (System.Text.Json.JsonSerializerOptions?)null),
+                    v => System.Text.Json.JsonSerializer.Deserialize<List<Guid>>(v, (System.Text.Json.JsonSerializerOptions?)null) ?? new(),
+                    new ValueComparer<List<Guid>>(
+                        (a, c) => a!.SequenceEqual(c!),
+                        v => v.Aggregate(0, (acc, id) => HashCode.Combine(acc, id.GetHashCode())),
+                        v => v.ToList()));
             b.Property(x => x.UpdatedAt);
             b.HasIndex(x => new { x.TenantId, x.Key }).IsUnique();
             b.Ignore(x => x.DomainEvents);
